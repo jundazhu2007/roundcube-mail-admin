@@ -8,6 +8,56 @@ webmail & admin login history, service control, and one-click system maintenance
 FastAPI backend, React + Vite frontend, JWT + WebAuthn/passkey admin auth,
 zh-TW / en / ja i18n.
 
+📖 **從零開始的完整中文建置指南**（含架構圖、Postfix/Dovecot/MariaDB/Amavis/Roundcube 全部一起架設）：
+[`docs/SETUP.zh-TW.md`](docs/SETUP.zh-TW.md)
+
+## Architecture
+
+```mermaid
+flowchart TB
+    MTA["Other mail servers<br/>(SMTP :25)"] --> Postfix
+    WebUser["Browser (webmail)"] --> Apache
+    Admin["Browser (/admin, LAN only)"] --> Apache
+
+    subgraph host["This host"]
+        Apache["Apache<br/>reverse proxy + TLS"]
+        Postfix["Postfix"]
+        Dovecot["Dovecot<br/>IMAP / Maildir"]
+        Amavis["Amavis + ClamAV<br/>+ SpamAssassin"]
+        Roundcube["Roundcube webmail"]
+        API["mail-admin API<br/>(FastAPI :8000)"]
+        Frontend["mail-admin frontend"]
+        DB[("MariaDB<br/>domains / users / aliases")]
+        Maildir[("Maildir storage")]
+        VUsers["/etc/dovecot/virtual-users"]
+    end
+
+    Postfix --> Amavis --> Postfix
+    Postfix -->|lookup| DB
+    Postfix -->|deliver| Dovecot --> Maildir
+    Dovecot -->|auth| VUsers
+
+    Apache -->|/roundcube| Roundcube
+    Roundcube -->|IMAP login| Dovecot
+    Roundcube -->|"ask before login"| API
+
+    Apache -->|/admin| Frontend
+    Apache -->|/api| API
+    API --> DB
+    API --> Maildir
+    API --> VUsers
+```
+
+MariaDB's `domains`/`users`/`aliases` tables are the source of truth — Postfix
+queries them live for routing/delivery decisions. Dovecot never talks to the
+database directly; it authenticates against a flat `passwd-file`
+(`/etc/dovecot/virtual-users`) that mail-admin regenerates from the database on
+every mailbox change. Roundcube authenticates straight against Dovecot's IMAP —
+mail-admin only touches the login path through the optional `country_gate`
+plugin (see the setup guide), and separately reads Roundcube's own log files to
+show login history. Full explanation with the reasoning behind each piece:
+[`docs/SETUP.zh-TW.md`](docs/SETUP.zh-TW.md#1-原理這些東西怎麼串在一起).
+
 ## Is this for you?
 
 This is an operations tool, not a generic app — it manages a real mail server by
@@ -65,6 +115,13 @@ The dev server proxies `/api` to `http://localhost:8000` (see
 6. Serve `frontend/dist` (after `npm run build`) under `/admin/` and reverse
    proxy `/api` to `127.0.0.1:8000` — e.g. with Apache `Alias`/`ProxyPass` or an
    Nginx `location` block.
+
+## Optional: Roundcube country gate
+
+`roundcube-plugin/country_gate/` is a small Roundcube plugin that enforces the
+country allow/deny list set on the panel's Webmail Policy page, by calling
+`/api/webmail-policy/check` before every login. Fail-open by design — see
+[`roundcube-plugin/country_gate/README.md`](roundcube-plugin/country_gate/README.md).
 
 ## Configuration reference
 
