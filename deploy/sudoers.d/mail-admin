@@ -21,8 +21,10 @@ SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/tee /etc/mail-admin/whitelist-ips.txt
 SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/tee /etc/mail-admin/blacklist-ips.txt
 
 # -- service control (api/routers/services.py) --
-# Restrict this to the exact service names your panel is allowed to restart.
-SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart postfix, /bin/systemctl restart dovecot, /bin/systemctl restart amavis
+# One line per service listed in MAIL_ADMIN_MANAGED_SERVICES (.env) that you want
+# restartable from the panel — the API itself also checks the name against that
+# list, this is the second (OS-level) layer of the same allowlist.
+SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart postfix, /bin/systemctl restart dovecot, /bin/systemctl restart amavis, /bin/systemctl restart clamav-daemon, /bin/systemctl restart opendkim, /bin/systemctl restart apache2, /bin/systemctl restart fail2ban, /bin/systemctl restart mariadb
 SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reboot
 SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl poweroff
 

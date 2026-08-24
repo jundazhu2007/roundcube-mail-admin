@@ -134,7 +134,7 @@ export default {
     cpuChart: 'CPU Usage', memChart: 'Memory Usage', networkChart: 'Network Throughput (Total)',
     diskChart: 'Disk I/O Rate',
     connections: 'Current Connections (Internal / External)',
-    connectionsHint: 'This is an approximate breakdown of current connection counts (by whether the peer IP is in the internal 192.168.100.0/24 subnet), not a precise byte-level traffic split — a single network interface cannot attribute bytes to individual connections at the OS level; a true internal/external byte split would require additional dedicated tooling. The upload/download chart above is the total throughput of the whole interface.',
+    connectionsHint: 'This is an approximate breakdown of current connection counts (by whether the peer IP is inside your configured internal subnet), not a precise byte-level traffic split — a single network interface cannot attribute bytes to individual connections at the OS level; a true internal/external byte split would require additional dedicated tooling. The upload/download chart above is the total throughput of the whole interface.',
     internal: 'Internal', external: 'External',
   },
   systemUpdates: {

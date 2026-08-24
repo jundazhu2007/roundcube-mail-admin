@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends
 from api.auth import require_permission, require_super_admin
 from api.routers.notifications import add_notification_once
@@ -7,11 +8,14 @@ import time
 
 router = APIRouter()
 
-SERVICES = ["postfix", "dovecot", "amavis", "clamav-daemon", "opendkim", "apache2", "cloudflared", "fail2ban", "mariadb"]
-NETWORK_IFACE = "ens33"
-DISK_DEVICE = "sda"
+SERVICES = os.environ.get(
+    "MAIL_ADMIN_MANAGED_SERVICES",
+    "postfix,dovecot,amavis,clamav-daemon,opendkim,apache2,fail2ban,mariadb",
+).split(",")
+NETWORK_IFACE = os.environ.get("MAIL_ADMIN_NETWORK_IFACE", "eth0")
+DISK_DEVICE = os.environ.get("MAIL_ADMIN_DISK_DEVICE", "sda")
 SECTOR_SIZE = 512
-INTERNAL_NETWORK = ipaddress.ip_network("192.168.100.0/24")
+INTERNAL_NETWORK = ipaddress.ip_network(os.environ.get("MAIL_ADMIN_INTERNAL_NETWORK", "192.168.1.0/24"))
 
 def run(cmd):
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -77,7 +81,7 @@ def _read_disk_io():
 
 
 def _count_connections():
-    """對內/對外只能用「目前連線數」概念性區分（依對方 IP 是否在 192.168.100.0/24），
+    """對內/對外只能用「目前連線數」概念性區分（依對方 IP 是否在 INTERNAL_NETWORK 設定的網段內），
     不是真正的流量位元組拆分——單一網卡在作業系統層級沒辦法直接拆出「這個位元組屬於
     哪個連線」，要做到真正的對內/對外流量拆分需要另外裝 nethogs/conntrack 這類工具並拿
     root 權限讀取，目前先用連線數當作對內/對外活動的概略指標，不需要額外權限。"""
