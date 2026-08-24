@@ -1,0 +1,35 @@
+# Grants the API's system account passwordless sudo for exactly the commands it
+# shells out to. Copy to /etc/sudoers.d/mail-admin, replace SERVICE_USER with the
+# real account name, and validate with `visudo -cf /etc/sudoers.d/mail-admin`.
+#
+# Do NOT widen these rules (e.g. no wildcard `ALL`) — several of them are
+# destructive (rm, reboot, poweroff).
+
+# -- dovecot virtual-users file rebuild (api/routers/users.py) --
+SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/tee /etc/dovecot/virtual-users
+SERVICE_USER ALL=(root) NOPASSWD: /bin/chmod 644 /etc/dovecot/virtual-users
+
+# -- per-user maildir management (api/routers/users.py) --
+SERVICE_USER ALL=(root) NOPASSWD: /bin/mkdir -p /mnt/maildata/homes/*/*/Maildir/new /mnt/maildata/homes/*/*/Maildir/cur /mnt/maildata/homes/*/*/Maildir/tmp
+SERVICE_USER ALL=(root) NOPASSWD: /bin/chown -R vmail\:vmail /mnt/maildata/homes/*/*
+SERVICE_USER ALL=(root) NOPASSWD: /bin/rm -rf /mnt/maildata/homes/*/*
+SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/du -sm /mnt/maildata/homes/*/*/Maildir
+
+# -- IP allow/deny list sync to disk (api/routers/ip_lists.py) --
+SERVICE_USER ALL=(root) NOPASSWD: /bin/mkdir -p /etc/mail-admin
+SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/tee /etc/mail-admin/whitelist-ips.txt
+SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/tee /etc/mail-admin/blacklist-ips.txt
+
+# -- service control (api/routers/services.py) --
+# Restrict this to the exact service names your panel is allowed to restart.
+SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart postfix, /bin/systemctl restart dovecot, /bin/systemctl restart amavis
+SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reboot
+SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl poweroff
+
+# -- system maintenance helper scripts (api/routers/system_updates.py) --
+# These scripts are host-specific and NOT part of this repo — write your own at
+# these paths (apt upgrade, ClamAV full scan, rkhunter check, Roundcube upgrade).
+SERVICE_USER ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-apt-upgrade.sh
+SERVICE_USER ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-clamav-fullscan.sh
+SERVICE_USER ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-rkhunter-check.sh
+SERVICE_USER ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-roundcube-upgrade.sh

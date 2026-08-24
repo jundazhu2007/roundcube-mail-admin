@@ -1,0 +1,94 @@
+.settings-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.settings-section {
+  background: var(--bg-secondary);
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.settings-section h2 {
+  margin-bottom: 1.5rem;
+}
+
+.register-passkey {
+  background: var(--bg-primary);
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.register-passkey input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.register-passkey button {
+  background: var(--primary);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.register-passkey button:hover {
+  opacity: 0.9;
+}
+
+.passkey-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.passkey-list th,
+.passkey-list td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.passkey-list th {
+  background: var(--bg-primary);
+  font-weight: 600;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+}
+
+.success {
+  color: #10b981;
+  padding: 0.75rem;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 4px;
+  margin-top: 0.75rem;
+}
+
+.error {
+  color: #ef4444;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+  margin-top: 0.75rem;
+}

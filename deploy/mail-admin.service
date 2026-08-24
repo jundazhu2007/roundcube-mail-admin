@@ -1,0 +1,17 @@
+[Unit]
+Description=Mail Admin API
+After=network.target
+
+[Service]
+Type=simple
+# Replace with the (unprivileged) system account that runs the API and holds the
+# sudoers NOPASSWD grants in deploy/sudoers.d/mail-admin
+User=mail-admin
+WorkingDirectory=/opt/mail-admin
+EnvironmentFile=/etc/mail-admin.env
+ExecStart=/opt/mail-admin/venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

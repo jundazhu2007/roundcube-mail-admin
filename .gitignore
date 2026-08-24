@@ -1,0 +1,23 @@
+# Backend
+venv/
+__pycache__/
+*.pyc
+.env
+*.bak.*
+
+# Runtime data (bootstrapped by the app on first run — never commit real admin
+# accounts, IP lists, login logs, or caches)
+api/data/*
+!api/data/.gitkeep
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
