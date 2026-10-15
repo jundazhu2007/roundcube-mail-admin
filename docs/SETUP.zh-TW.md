@@ -16,13 +16,13 @@ OpenDKIM（簽章）· Roundcube（網頁信箱）· Apache（HTTPS）· 管理�
 ## 安裝
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash
 ```
 
 在終端機執行會進入問答精靈（每題都有預設值，最後會先列出計畫再問你要不要開始）。想無人值守就用旗標：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- \
   --yes --hostname mail.example.com --email you@example.com --admin-allow 203.0.113.7
 ```
 
@@ -108,7 +108,7 @@ flowchart TB
 
 ```bash
 sudo mail-admin-install --yes --webmail-language zh_TW   # 改選項後重跑（密碼、信件都會保留）
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade   # 只升級後台
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade   # 只升級後台
 sudo mail-admin-dkim-add-domain example.org              # 新增網域的 DKIM 並印出 DNS 記錄
 ```
 

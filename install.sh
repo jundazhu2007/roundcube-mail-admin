@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # mail-admin one-line installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash
-#   curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- --help
+#   curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- --help
 #   curl -fsSL .../install.sh | sudo bash -s -- --yes --hostname mail.example.com --email me@example.com
 #
 # What this small script does: download the release tarball (it contains the prebuilt web UI), verify its
 # SHA-256 against the SHA256SUMS published next to it, unpack it into a temporary directory and run the real
 # installer (deploy/installer/main.sh) from there. Read it, and prefer downloading and inspecting it first
 # if you do not want to pipe a script into a root shell:
-#     curl -fsSLO https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh && less install.sh
+#     curl -fsSLO https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh && less install.sh
 #
 # MAIL_ADMIN_REF=v1.1.0 pins a version (default: the latest release).
 set -euo pipefail
 
-REPO="${MAIL_ADMIN_REPO:-Jundahzu/roundcube-mail-admin}"
+REPO="${MAIL_ADMIN_REPO:-jundazhu2007/roundcube-mail-admin}"
 REF="${MAIL_ADMIN_REF:-latest}"
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }

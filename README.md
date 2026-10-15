@@ -13,28 +13,28 @@ virus scans and Roundcube upgrades, a security overview, passkey (WebAuthn) logi
 > **Status: 1.1 (beta).** The pieces are validated against the real Postfix 3.10, Dovecot 2.4, Apache 2.4,
 > PHP 8.5 and MariaDB 11.8 that Ubuntu 26.04 ships (see [Testing](#testing)), but the installer has not yet been
 > run end-to-end on a large number of clean servers. Try it on a fresh VM first and
-> [open an issue](https://github.com/Jundahzu/roundcube-mail-admin/issues) if anything misbehaves.
+> [open an issue](https://github.com/jundazhu2007/roundcube-mail-admin/issues) if anything misbehaves.
 
 ## Install
 
 On a **fresh Ubuntu 26.04 LTS** server, as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash
 ```
 
 In a terminal it asks a handful of questions (hostname, certificates, Cloudflare, storage, …) with sensible
 defaults and shows a plan before it changes anything. For unattended installs pass everything as flags:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- \
   --yes --hostname mail.example.com --email you@example.com --admin-allow 203.0.113.7
 ```
 
 Prefer to read before you run? Download it first, then run it:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh
+curl -fsSLO https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh
 less install.sh && sudo bash install.sh --help
 ```
 
@@ -76,7 +76,7 @@ Full reference with examples: **[docs/INSTALL.md](docs/INSTALL.md)**.
 ```bash
 sudo mail-admin-install --yes --webmail-language ja_JP     # re-run with changed options; secrets and mail are kept
 # upgrade just the panel to a newer release (never touches mail, config or data):
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
 sudo mail-admin-dkim-add-domain example.org                # DKIM key + the DNS record to publish
 ```
 

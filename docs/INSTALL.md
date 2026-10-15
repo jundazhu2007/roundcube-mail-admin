@@ -33,10 +33,10 @@ This is the reference for `install.sh`. For the short version see the [README](.
 
 ```bash
 # interactive wizard
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash
 
 # preview everything without changing anything (no root needed)
-curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | bash -s -- \
   --dry-run --yes --hostname mail.example.com --admin-allow 192.168.1.0/24
 ```
 
@@ -228,7 +228,7 @@ Additional mail domains: add them in the panel, create their MX/SPF/DMARC record
 * **Upgrade** the panel (code, helper scripts, sudoers, systemd units – not mail, config or data):
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
+  curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
   ```
   Pin a release with `MAIL_ADMIN_REF=v1.1.0`.
 * Roundcube and the OS packages are updated from the panel's **System updates** page.
