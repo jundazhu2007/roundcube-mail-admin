@@ -103,7 +103,7 @@ def chown_tree(path, uid, gid):
 
 def cmd_maildir_create(domain, user):
     base, target = mailbox_dir(domain, user)
-    uid, gid = vmail_ids()
+    ids = vmail_ids() if os.geteuid() == 0 else None    # ownership is only changed when running as root
     # Mail directories must not be listable by other local users: 750 for the domain level, 700 below.
     wanted = [
         (os.path.join(base, domain), 0o750),
@@ -114,9 +114,9 @@ def cmd_maildir_create(domain, user):
         if not os.path.isdir(path):
             os.mkdir(path)
         os.chmod(path, mode)
-    if os.geteuid() == 0:
-        os.chown(os.path.join(base, domain), uid, gid)
-    chown_tree(target, uid, gid)
+    if ids:
+        os.chown(os.path.join(base, domain), *ids)
+        chown_tree(target, *ids)
 
 
 def cmd_maildir_delete(domain, user):
