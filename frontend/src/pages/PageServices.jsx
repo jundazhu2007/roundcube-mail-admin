@@ -74,7 +74,7 @@ export default function PageServices({ currentAdmin }) {
         actions={<Button variant="ghost" icon={RefreshCw} onClick={refresh} loading={loading}>{t('services.refresh')}</Button>} />
 
       <div className="grid grid-2">
-        <Card className="animate-in animate-in-1">
+        <Card>
           <div className="card-title"><Activity size={15} /> {t('services.serviceStatus')}</div>
           {services.map(s => (
             <div key={s.name} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
@@ -93,7 +93,7 @@ export default function PageServices({ currentAdmin }) {
           {services.length === 0 && <div className="empty-row">{t('common.loading')}</div>}
         </Card>
 
-        <Card className="animate-in animate-in-2">
+        <Card>
           <div className="card-title"><Gauge size={15} /> {t('services.systemResources')}</div>
           {[[t('dashboard.cpu'),system.cpu],[t('dashboard.memory'),system.memory],[t('dashboard.diskRoot'),system.disk_root],[t('dashboard.diskNas'),system.disk_nas]].map(([k,v])=>(
             <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--border)',fontSize:'13px'}}>
@@ -111,7 +111,7 @@ export default function PageServices({ currentAdmin }) {
         </Card>
 
         {currentAdmin?.super_admin && (
-          <Card className="animate-in animate-in-3">
+          <Card>
             <div className="card-title"><Power size={15} /> {t('services.powerControl')}</div>
             <MsgBanner msg={powerMsg} onClose={() => setPowerMsg({ text: '', type: '' })} />
             <div className="input-hint" style={{ marginBottom: 12 }}>{t('services.powerWarning')}</div>

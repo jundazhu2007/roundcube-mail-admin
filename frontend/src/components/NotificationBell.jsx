@@ -5,6 +5,7 @@ import {
 import api from '../api/client'
 import { useLanguage } from '../i18n/LanguageContext'
 import { timeAgo } from '../pages/PageSecurity'
+import usePolling from '../utils/usePolling'
 
 const POLL_MS = 30000
 
@@ -61,11 +62,7 @@ export default function NotificationBell() {
     }).catch(() => {})
   }
 
-  useEffect(() => {
-    load()
-    const timer = setInterval(load, POLL_MS)
-    return () => clearInterval(timer)
-  }, [])
+  usePolling(load, POLL_MS)
 
   useEffect(() => {
     const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -114,7 +111,7 @@ export default function NotificationBell() {
       {open && (
         <div className="notif-panel">
           <div className="notif-panel-header">
-            <span className="notif-panel-title">🔔 {t('notifications.title')}</span>
+            <span className="notif-panel-title">{t('notifications.title')}</span>
             {unread > 0 && (
               <button onClick={markAllRead} className="notif-mark-all-btn">
                 {t('notifications.markAllRead')}
@@ -134,7 +131,6 @@ export default function NotificationBell() {
           <div className="notif-list">
             {visible.length === 0 && (
               <div className="notif-empty">
-                <span className="notif-empty-emoji">{tab === 'unread' ? '🐾' : '📭'}</span>
                 {tab === 'unread' ? t('notifications.emptyUnread') : t('notifications.empty')}
               </div>
             )}

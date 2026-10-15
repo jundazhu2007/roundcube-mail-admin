@@ -1,22 +1,47 @@
 import os
 import re
 import subprocess
+import time
 import mysql.connector
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from api.auth import require_permission
-from api.config import DB_HOST, DB_USER, DB_PASS, DB_NAME, MAILDATA_PATH, DEFAULT_MAIL_DOMAIN
+from api import privileged
+from api.config import DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME, MAILDATA_PATH, DEFAULT_MAIL_DOMAIN
 
 router = APIRouter()
 
 LOCAL_PART_RE = re.compile(r"^[A-Za-z0-9._%+-]{1,64}$")
+
+
+def _is_safe_local_part(name: str) -> bool:
+    """The username becomes a directory name under MAILDATA_PATH (and is passed to `sudo rm -rf` on delete),
+    so '.', '..' and anything that starts/ends with a dot or contains '..' must never be accepted."""
+    return bool(LOCAL_PART_RE.match(name)) and not name.startswith(".") and not name.endswith(".") and ".." not in name
 DOMAIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 MIN_PASSWORD_LENGTH = 12
+
+# 信箱大小要對 NAS 上的每個檔案做 stat（du 走 NFS），每次打開使用者頁都重算一遍既慢又會在 auth.log 留一堆 sudo 紀錄；
+# 快取 5 分鐘，大小最多晚 5 分鐘更新，對管理用途沒有影響。
+MAILDIR_SIZE_TTL = 300
+_maildir_size_cache = {}
+
+
+def _maildir_size_mb(domain, username):
+    key = (domain, username)
+    hit = _maildir_size_cache.get(key)
+    if hit and time.time() - hit[1] < MAILDIR_SIZE_TTL:
+        return hit[0]
+    # Mailboxes belong to vmail:vmail and are not readable by the service account: ask the privileged helper
+    r = privileged.run_helper("maildir-size", domain, username)
+    size = (r.stdout.strip() if r.returncode == 0 else "0") or "0"
+    _maildir_size_cache[key] = (size, time.time())
+    return size
 
 
 def get_db():
     return mysql.connector.connect(
-        host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME
+        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS, database=DB_NAME
     )
 
 
@@ -27,9 +52,9 @@ def rebuild_virtual_users():
     rows = cursor.fetchall()
     db.close()
     content = "".join(f"{email}:{pw_hash}\n" for email, pw_hash in rows)
-    subprocess.run(['sudo', 'tee', '/etc/dovecot/virtual-users'],
-                    input=content, capture_output=True, text=True)
-    subprocess.run(['sudo', 'chmod', '644', '/etc/dovecot/virtual-users'])
+    r = privileged.run_helper("write-virtual-users", input=content)
+    if r.returncode != 0:
+        raise HTTPException(status_code=500, detail={"code": "virtual_users_write_failed"})
 
 
 def hash_password(password: str) -> str:
@@ -69,11 +94,7 @@ def list_users():
     users = []
     for id_, email, quota_mb, active, domain in rows:
         username = email.split('@')[0]
-        maildir = os.path.join(MAILDATA_PATH, domain, username, 'Maildir')
-        # Maildir 屬於 vmail:vmail，運行後端服務的系統帳號沒有讀取權限，必須透過 sudo（已在 NOPASSWD 白名單內）
-        r = subprocess.run(['sudo', 'du', '-sm', maildir], capture_output=True, text=True)
-        size = r.stdout.split('\t')[0].strip() if r.returncode == 0 else "0"
-        size = size or "0"
+        size = _maildir_size_mb(domain, username)
         users.append({
             "id": id_,
             "username": username,
@@ -88,7 +109,7 @@ def list_users():
 
 @router.post("/", dependencies=[Depends(require_permission("users", "modify"))])
 def create_user(user: UserCreate):
-    if not LOCAL_PART_RE.match(user.username):
+    if not _is_safe_local_part(user.username):
         raise HTTPException(status_code=400, detail={"code": "invalid_username_format"})
     if not DOMAIN_RE.match(user.domain):
         raise HTTPException(status_code=400, detail={"code": "invalid_domain_format"})
@@ -118,10 +139,9 @@ def create_user(user: UserCreate):
         raise HTTPException(status_code=400, detail={"code": "email_exists"})
     db.close()
 
-    maildir = os.path.join(MAILDATA_PATH, user.domain, user.username, 'Maildir')
-    subprocess.run(['sudo', 'mkdir', '-p', f"{maildir}/new", f"{maildir}/cur", f"{maildir}/tmp"])
-    subprocess.run(['sudo', 'chown', '-R', 'vmail:vmail',
-                     os.path.join(MAILDATA_PATH, user.domain, user.username)])
+    r = privileged.run_helper("maildir-create", user.domain, user.username)
+    if r.returncode != 0:
+        raise HTTPException(status_code=500, detail={"code": "maildir_create_failed"})
 
     rebuild_virtual_users()
 
@@ -148,8 +168,8 @@ def delete_user(email: str):
     db.commit()
     db.close()
 
-    if LOCAL_PART_RE.match(username) and DOMAIN_RE.match(domain):
-        subprocess.run(['sudo', 'rm', '-rf', os.path.join(MAILDATA_PATH, domain, username)])
+    if _is_safe_local_part(username) and DOMAIN_RE.match(domain):
+        privileged.run_helper("maildir-delete", domain, username)
 
     rebuild_virtual_users()
     return {"status": "ok"}

@@ -183,7 +183,7 @@ function ScanCard({ icon: Icon, title, warningText, triggerPath, statusPath, run
   const badge = statusBadges[state.status]
 
   return (
-    <Card className="animate-in" style={{ marginBottom: 18 }}>
+    <Card style={{ marginBottom: 18 }}>
       <div className="card-title"><Icon size={15} /> {title}</div>
       <div className="input-hint" style={{ marginBottom: 12 }}>{warningText}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -225,7 +225,7 @@ function RoundcubeVersionCard({ t, lang }) {
   const s = status || {}
 
   return (
-    <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+    <Card style={{ marginBottom: 18 }}>
       <div className="card-title"><Package size={15} /> Roundcube Webmail</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
         <span style={{ color: 'var(--text-secondary)' }}>{t('systemUpdates.colCurrent')}</span>
@@ -371,7 +371,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
             style={{
               padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
               background: tab === tb.key ? 'var(--primary-soft)' : 'var(--bg-secondary)',
-              display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all .18s ease',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
               fontWeight: tab === tb.key ? 700 : 400,
               border: `1px solid ${tab === tb.key ? 'var(--primary)' : 'var(--border)'}`,
               color: tab === tb.key ? 'var(--primary)' : 'var(--text-primary)',
@@ -383,7 +383,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
 
       {tab === 'overview' && (
         <>
-          <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+          <Card style={{ marginBottom: 18 }}>
             <div className="card-title"><Timer size={15} /> {t('systemUpdates.uptimeTitle')}</div>
             <div className="grid grid-2">
               <div>
@@ -406,7 +406,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
           </Card>
 
           <div className="grid grid-2" style={{ marginBottom: 18, alignItems: 'start' }}>
-            <Card className="animate-in animate-in-1">
+            <Card>
               <div className="card-title"><ShieldPlus size={15} /> {t('systemUpdates.unattendedUpgrades')}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', fontSize: 13 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{t('systemUpdates.unattendedUpgrades')}</span>
@@ -415,7 +415,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
                 </Badge>
               </div>
             </Card>
-            <Card className="animate-in animate-in-2">
+            <Card>
               <div className="card-title">{t('systemUpdates.overviewCounts')}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{t('systemUpdates.tabOs')}</span>
@@ -457,7 +457,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
           </div>
 
           {currentAdmin?.super_admin && (
-            <Card className="animate-in animate-in-2" style={{ marginBottom: 18 }}>
+            <Card style={{ marginBottom: 18 }}>
               <div className="card-title"><Zap size={15} /> {t('systemUpdates.oneClickUpdate')}</div>
               <div className="input-hint" style={{ marginBottom: 12 }}>{t('systemUpdates.upgradeWarning')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -482,7 +482,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
           )}
 
           {overview.reboot_required_packages?.length > 0 && (
-            <Card className="animate-in animate-in-3">
+            <Card>
               <div className="card-title"><TriangleAlert size={15} /> {t('systemUpdates.rebootRequiredPackages')}</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
                 {overview.reboot_required_packages.join(', ')}
@@ -493,7 +493,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
       )}
 
       {tab === 'os' && (
-        <Card className="animate-in animate-in-1">
+        <Card>
           <div className="card-title"><Boxes size={15} />
             {t('systemUpdates.pendingPackages', { count: osUpdates.packages.length })}
           </div>
@@ -503,7 +503,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
 
       {tab === 'software' && (
         <>
-          <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+          <Card style={{ marginBottom: 18 }}>
             <div className="card-title"><AppWindow size={15} /> {t('systemUpdates.trackedServices')}</div>
             <div className="table-wrap">
               <table className="data-table">
@@ -538,7 +538,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
               failed: { tone: 'danger', label: t('systemUpdates.upgradeFailed') },
             }} />
 
-          <Card className="animate-in animate-in-2">
+          <Card>
             <div className="card-title"><Package size={15} />
               {t('systemUpdates.pendingPackages', { count: softwareUpdates.packages.length })}
             </div>
@@ -549,7 +549,7 @@ export default function PageSystemUpdates({ currentAdmin }) {
 
       {tab === 'antivirus' && (
         <>
-          <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+          <Card style={{ marginBottom: 18 }}>
             <div className="card-title">{t('systemUpdates.clamavStatus')}</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
               <span style={{ color: 'var(--text-secondary)' }}>{t('systemUpdates.clamavVersion')}</span>

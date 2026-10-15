@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -9,8 +10,8 @@ from api.routers.security import _geo_lookup, _iter_all_lines, _pick_country
 
 router = APIRouter()
 
-USERLOGINS_LOG = "/var/log/roundcube/userlogins.log"
-APACHE_VHOST_LOG = "/var/log/apache2/other_vhosts_access.log"
+USERLOGINS_LOG = os.environ.get("MAIL_ADMIN_ROUNDCUBE_LOGINS_LOG", "/var/log/roundcube/userlogins.log")
+APACHE_VHOST_LOG = os.environ.get("MAIL_ADMIN_APACHE_ACCESS_LOG", "/var/log/apache2/other_vhosts_access.log")
 
 # 例：[25-Jul-2026 02:02:33 +0000]: <b1ca7be0> Successful login for user@example.com (ID: 2) from 203.0.113.10 (X-Forwarded-For: 203.0.113.10) in session b1ca7be0325753ef
 USERLOGIN_RE = re.compile(
@@ -198,7 +199,7 @@ def _record_region(record):
 @router.get("/", dependencies=[Depends(require_permission("webmail_logins", "view"))])
 def get_webmail_logins(
     user: Optional[str] = Query(None, description="依帳號篩選（不分大小寫、包含比對）"),
-    ip: Optional[str] = Query(None, description="依 IP 篩選（包含比對，例如打 '222.229' 可以比對到整個網段）"),
+    ip: Optional[str] = Query(None, description="依 IP 篩選（包含比對，例如打 '203.0.113' 可以比對到整個網段）"),
     country: Optional[str] = Query(None, description="依國家代碼篩選（例如 JP、TW）"),
     region: Optional[str] = Query(None, description="依城市/地區篩選（不分大小寫、包含比對）"),
     start: Optional[str] = Query(None, description="起始時間，格式 YYYY-MM-DDTHH（年月日時），預設 UTC"),

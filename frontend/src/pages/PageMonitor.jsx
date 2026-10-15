@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Activity, Cpu, MemoryStick, HardDrive, Wifi, ArrowUp, ArrowDown } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import api from '../api/client'
+import usePolling from '../utils/usePolling'
 import { PageHeader, Card, Badge } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -32,47 +33,54 @@ export default function PageMonitor() {
   const [points, setPoints] = useState([])
   const [latest, setLatest] = useState(null)
   const prevRef = useRef(null)
+  const aliveRef = useRef(true)
 
   useEffect(() => {
-    let cancelled = false
-    const poll = () => {
-      api.get('/services/live-stats').then(r => {
-        if (cancelled) return
-        const cur = r.data
-        const prev = prevRef.current
-        const dt = prev ? (cur.timestamp - prev.timestamp) : null
-
-        const rate = (curVal, prevVal) => {
-          if (!dt || dt <= 0 || curVal == null || prevVal == null) return null
-          const diff = curVal - prevVal
-          return diff >= 0 ? diff / dt : null
-        }
-
-        const netUp = rate(cur.tx_bytes, prev?.tx_bytes)
-        const netDown = rate(cur.rx_bytes, prev?.rx_bytes)
-        const diskRead = rate(cur.disk_read_bytes, prev?.disk_read_bytes)
-        const diskWrite = rate(cur.disk_write_bytes, prev?.disk_write_bytes)
-        const memPercent = cur.mem_total_mb ? (cur.mem_used_mb / cur.mem_total_mb) * 100 : null
-
-        const point = {
-          time: new Date(cur.timestamp * 1000).toLocaleTimeString(),
-          cpu: cur.cpu_percent,
-          mem: memPercent,
-          netUp, netDown, diskRead, diskWrite,
-        }
-
-        setPoints(p => [...p, point].slice(-MAX_POINTS))
-        setLatest({ ...cur, netUp, netDown, diskRead, diskWrite, memPercent })
-        prevRef.current = cur
-      }).catch(() => {})
-    }
-    poll()
-    const timer = setInterval(poll, POLL_MS)
-    return () => { cancelled = true; clearInterval(timer) }
+    aliveRef.current = true
+    return () => { aliveRef.current = false }
   }, [])
 
+  const poll = () => {
+    api.get('/services/live-stats').then(r => {
+      if (!aliveRef.current) return
+      const cur = r.data
+      const prev = prevRef.current
+      const dt = prev ? (cur.timestamp - prev.timestamp) : null
+
+      const rate = (curVal, prevVal) => {
+        if (!dt || dt <= 0 || curVal == null || prevVal == null) return null
+        const diff = curVal - prevVal
+        return diff >= 0 ? diff / dt : null
+      }
+
+      const netUp = rate(cur.tx_bytes, prev?.tx_bytes)
+      const netDown = rate(cur.rx_bytes, prev?.rx_bytes)
+      const diskRead = rate(cur.disk_read_bytes, prev?.disk_read_bytes)
+      const diskWrite = rate(cur.disk_write_bytes, prev?.disk_write_bytes)
+      const memPercent = cur.mem_total_mb ? (cur.mem_used_mb / cur.mem_total_mb) * 100 : null
+      // CPU 跟網路/硬碟一樣是累計計數器：這段時間內非閒置時間佔總時間的比例
+      const cpuSpan = prev ? cur.cpu_total - prev.cpu_total : null
+      const cpuPercent = cpuSpan > 0 && cur.cpu_idle != null && prev?.cpu_idle != null
+        ? Math.min(100, Math.max(0, (1 - (cur.cpu_idle - prev.cpu_idle) / cpuSpan) * 100))
+        : null
+
+      const point = {
+        time: new Date(cur.timestamp * 1000).toLocaleTimeString(),
+        cpu: cpuPercent,
+        mem: memPercent,
+        netUp, netDown, diskRead, diskWrite,
+      }
+
+      setPoints(p => [...p, point].slice(-MAX_POINTS))
+      setLatest({ ...cur, cpuPercent, netUp, netDown, diskRead, diskWrite, memPercent })
+      prevRef.current = cur
+    }).catch(() => {})
+  }
+
+  usePolling(poll, POLL_MS)
+
   const chartCard = (titleKey, icon, children) => (
-    <Card className="animate-in" style={{ marginBottom: 18 }}>
+    <Card style={{ marginBottom: 18 }}>
       <div className="card-title">{icon} {t(titleKey)}</div>
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer>{children}</ResponsiveContainer>
@@ -85,9 +93,9 @@ export default function PageMonitor() {
       <PageHeader icon={Activity} title={t('monitor.title')} subtitle={t('monitor.subtitle')}
         actions={<span className="live-badge"><span className="live-dot" />{t('dashboard.liveMonitoring')}</span>} />
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+      <Card style={{ marginBottom: 18 }}>
         <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-          <StatBadge icon={Cpu} label={t('monitor.cpu')} value={latest?.cpu_percent != null ? `${latest.cpu_percent.toFixed(1)}%` : '···'} color="var(--accent-violet)" />
+          <StatBadge icon={Cpu} label={t('monitor.cpu')} value={latest?.cpuPercent != null ? `${latest.cpuPercent.toFixed(1)}%` : '···'} color="var(--accent-violet)" />
           <StatBadge icon={MemoryStick} label={t('monitor.memory')} value={latest?.memPercent != null ? `${latest.memPercent.toFixed(1)}%` : '···'} color="var(--info)" />
           <StatBadge icon={ArrowUp} label={t('monitor.netUp')} value={formatRate(latest?.netUp)} color="var(--success)" />
           <StatBadge icon={ArrowDown} label={t('monitor.netDown')} value={formatRate(latest?.netDown)} color="var(--accent-teal)" />
@@ -142,7 +150,7 @@ export default function PageMonitor() {
         )}
       </div>
 
-      <Card className="animate-in animate-in-2">
+      <Card>
         <div className="card-title"><Wifi size={15} /> {t('monitor.connections')}</div>
         <div className="input-hint" style={{ marginBottom: 10 }}>{t('monitor.connectionsHint')}</div>
         <div style={{ display: 'flex', gap: 10 }}>

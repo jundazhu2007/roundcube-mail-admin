@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, ShieldBan, Plus, Trash2, ShieldAlert, Info } from 'lucide-react'
+import { ShieldCheck, ShieldBan, Plus, Trash2, ShieldAlert, Info, Network } from 'lucide-react'
 import api from '../api/client'
 import { PageHeader, Card, Button, Modal, MsgBanner, EmptyState, SkeletonRows, Badge } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -41,7 +41,7 @@ function IpDetailModal({ item, onClose, t }) {
 
 function IpTable({ title, icon: Icon, entries, loading, onDelete, onDetail, emptyText, t }) {
   return (
-    <Card className="animate-in animate-in-1">
+    <Card>
       <div className="card-title"><Icon size={15} /> {title}</div>
       <div className="table-wrap">
         <table className="data-table">
@@ -83,6 +83,9 @@ export default function PageIpLists() {
   const [form, setForm] = useState({ ip: '', note: '' })
   const [submitting, setSubmitting] = useState(false)
   const [detailItem, setDetailItem] = useState(null)
+  const [showAddRange, setShowAddRange] = useState(false)
+  const [rangeForm, setRangeForm] = useState({ cidr: '', note: '' })
+  const [submittingRange, setSubmittingRange] = useState(false)
 
   const load = () => {
     api.get('/ip-lists/').then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false))
@@ -116,6 +119,33 @@ export default function PageIpLists() {
     }
   }
 
+  const delRange = async (cidr) => {
+    if (!confirm(t('ipLists.deleteRangeConfirm', { cidr }))) return
+    try {
+      await api.delete(`/ip-lists/blocked-ranges/${encodeURIComponent(cidr)}`)
+      setMsg({ text: t('ipLists.deleteSuccess', { ip: cidr }), type: 'success' })
+      load()
+    } catch (err) {
+      setMsg({ text: apiErrorText(err, t), type: 'error' })
+    }
+  }
+
+  const submitAddRange = async (e) => {
+    e.preventDefault()
+    setSubmittingRange(true)
+    try {
+      await api.post('/ip-lists/blocked-ranges', rangeForm)
+      setMsg({ text: t('ipLists.addSuccess', { ip: rangeForm.cidr }), type: 'success' })
+      setShowAddRange(false)
+      setRangeForm({ cidr: '', note: '' })
+      load()
+    } catch (err) {
+      setMsg({ text: t('ipLists.addFailed', { error: apiErrorText(err, t) }), type: 'error' })
+    } finally {
+      setSubmittingRange(false)
+    }
+  }
+
   const promote = async (ip) => {
     try {
       await api.post('/ip-lists/blacklist', { ip, note: '' })
@@ -126,7 +156,7 @@ export default function PageIpLists() {
     }
   }
 
-  const d = data || { whitelist: [], blacklist: [], fail2ban_banned: [] }
+  const d = data || { whitelist: [], blacklist: [], blocked_ranges: [], fail2ban_banned: [] }
   const blacklistIps = new Set(d.blacklist.map(e => e.ip))
 
   return (
@@ -155,12 +185,12 @@ export default function PageIpLists() {
         </div>
       </div>
 
-      <Card className="animate-in animate-in-2">
+      <Card>
         <div className="card-title"><ShieldAlert size={15} /> {t('ipLists.fail2banBanned')}</div>
         {d.fail2ban_banned.length === 0 && <div className="empty-row">{t('ipLists.noBannedIps')}</div>}
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-          {d.fail2ban_banned.map((b, i) => (
-            <div key={`${b.jail}-${b.ip}`} className="banned-ip-chip" style={{ animationDelay: `${i * 0.03}s`, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          {d.fail2ban_banned.map(b => (
+            <div key={`${b.jail}-${b.ip}`} className="banned-ip-chip" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="ip">{b.ip}</span>
                 <Badge tone="danger">{b.jail}</Badge>
@@ -181,6 +211,40 @@ export default function PageIpLists() {
         </div>
       </Card>
 
+      <Card style={{ marginTop: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-title"><Network size={15} /> {t('ipLists.blockedRanges')}</div>
+          <Button variant="primary" size="sm" icon={Plus} onClick={() => { setShowAddRange(true); setRangeForm({ cidr: '', note: '' }) }}>{t('ipLists.addRange')}</Button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 12px' }}>{t('ipLists.blockedRangesHint')}</div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t('ipLists.colRange')}</th><th>{t('ipLists.colNote')}</th>
+                <th>{t('ipLists.colAddedBy')}</th><th>{t('ipLists.colAddedAt')}</th>
+                <th style={{ width: 100 }}>{t('ipLists.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <SkeletonRows colSpan={5} rows={2} />}
+              {!loading && d.blocked_ranges.length === 0 && <EmptyState text={t('ipLists.noBlockedRanges')} colSpan={5} />}
+              {d.blocked_ranges.map(e => (
+                <tr key={e.cidr}>
+                  <td className="cell-strong ip">{e.cidr}</td>
+                  <td>{e.note || '—'}</td>
+                  <td>{e.added_by}</td>
+                  <td style={{ fontSize: 11.5 }}>{formatFull(e.added_at, t)}</td>
+                  <td>
+                    <Button variant="danger" size="sm" icon={Trash2} onClick={() => delRange(e.cidr)}>{t('common.delete')}</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
       {showAdd && (
         <Modal title={t('ipLists.addIp')} onClose={() => setShowAdd(null)}
           footer={<>
@@ -196,6 +260,26 @@ export default function PageIpLists() {
               <label className="field-label">{t('ipLists.noteLabel')}</label>
               <input className="input" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder={t('ipLists.notePlaceholder')} />
             </div>
+          </form>
+        </Modal>
+      )}
+
+      {showAddRange && (
+        <Modal title={t('ipLists.addRange')} onClose={() => setShowAddRange(false)}
+          footer={<>
+            <Button type="button" variant="ghost" onClick={() => setShowAddRange(false)}>{t('common.cancel')}</Button>
+            <Button type="submit" form="range-add-form" variant="primary" loading={submittingRange}>{t('common.confirm')}</Button>
+          </>}>
+          <form id="range-add-form" onSubmit={submitAddRange}>
+            <div className="field">
+              <label className="field-label">{t('ipLists.rangeLabel')}</label>
+              <input required className="input" value={rangeForm.cidr} onChange={e => setRangeForm({ ...rangeForm, cidr: e.target.value })} placeholder="192.192.150.0/23" />
+            </div>
+            <div className="field" style={{ marginBottom: 4 }}>
+              <label className="field-label">{t('ipLists.noteLabel')}</label>
+              <input className="input" value={rangeForm.note} onChange={e => setRangeForm({ ...rangeForm, note: e.target.value })} placeholder={t('ipLists.notePlaceholder')} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{t('ipLists.blockedRangesHint')}</div>
           </form>
         </Modal>
       )}

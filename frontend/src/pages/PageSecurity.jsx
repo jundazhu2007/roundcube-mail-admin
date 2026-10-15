@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ComposedChart, Line, CartesianGrid, Legend } from 'recharts'
 import api from '../api/client'
-import { PageHeader, Card, Button, Badge, AnimatedNumber, Modal } from '../components/ui'
+import { PageHeader, Card, Button, Badge, FormattedNumber, Modal } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
 function jailLabel(jail, t) {
@@ -275,7 +275,7 @@ export default function PageSecurity() {
         <QuickStat icon={ShieldBan} label={t('security.todayNewBans')} value={d.bans_today} color="var(--accent-violet)" />
       </div>
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+      <Card style={{ marginBottom: 18 }}>
         <div className="card-title"><ShieldAlert size={15} /> {t('security.dailyTrend', { since: sinceTrend })}</div>
         {(d.daily_series || []).length === 0 ? (
           <div className="empty-row">{t('security.noHistoryData')}</div>
@@ -293,8 +293,8 @@ export default function PageSecurity() {
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="attacks" dataKey="attacks" name={t('security.attackAttempts')} fill="var(--info)" radius={[4, 4, 0, 0]} maxBarSize={18} />
-                <Line yAxisId="bans" dataKey="bans" name={t('security.banCount')} stroke="var(--danger)" strokeWidth={2} dot={{ r: 2 }} />
+                <Bar isAnimationActive={false} yAxisId="attacks" dataKey="attacks" name={t('security.attackAttempts')} fill="var(--info)" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                <Line isAnimationActive={false} yAxisId="bans" dataKey="bans" name={t('security.banCount')} stroke="var(--danger)" strokeWidth={2} dot={{ r: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -302,7 +302,7 @@ export default function PageSecurity() {
       </Card>
 
       <div className="grid dashboard-split" style={{ marginBottom: 18 }}>
-        <Card className="animate-in animate-in-1">
+        <Card>
           <div className="card-title"><Ban size={15} /> {t('security.banDistribution')}</div>
           {chartData.length === 0 ? (
             <div className="empty-row">{t('security.noBanRecords')}</div>
@@ -317,7 +317,7 @@ export default function PageSecurity() {
                     contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
                     labelStyle={{ color: 'var(--text-primary)' }}
                   />
-                  <Bar dataKey="value" radius={[0, 8, 8, 0]} maxBarSize={28}>
+                  <Bar isAnimationActive={false} dataKey="value" radius={[0, 8, 8, 0]} maxBarSize={28}>
                     {chartData.map((c, i) => <Cell key={i} fill={c.color} />)}
                   </Bar>
                 </BarChart>
@@ -326,7 +326,7 @@ export default function PageSecurity() {
           )}
         </Card>
 
-        <Card className="animate-in animate-in-2">
+        <Card>
           <div className="card-title"><Globe2 size={15} /> {t('security.countryDistribution')}</div>
           {(d.country_distribution || []).length === 0 ? (
             <div className="empty-row">{t('security.notEnoughData')}</div>
@@ -342,7 +342,7 @@ export default function PageSecurity() {
                     contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
                     labelStyle={{ color: 'var(--text-primary)' }}
                   />
-                  <Bar dataKey="value" fill="var(--danger)" radius={[0, 8, 8, 0]} maxBarSize={20} />
+                  <Bar isAnimationActive={false} dataKey="value" fill="var(--danger)" radius={[0, 8, 8, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -353,7 +353,7 @@ export default function PageSecurity() {
         </Card>
       </div>
 
-      <Card className="animate-in animate-in-2" style={{ marginBottom: 18 }}>
+      <Card style={{ marginBottom: 18 }}>
         <div className="card-title"><ShieldBan size={15} /> {t('security.currentlyBannedDetail')}</div>
         {(d.currently_banned || []).length === 0 && (
           <div className="empty-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -362,8 +362,8 @@ export default function PageSecurity() {
           </div>
         )}
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
-          {(d.currently_banned || []).map((b, i) => (
-            <div key={`${b.jail}-${b.ip}`} className="banned-ip-chip" style={{ animationDelay: `${i * 0.03}s`, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          {(d.currently_banned || []).map(b => (
+            <div key={`${b.jail}-${b.ip}`} className="banned-ip-chip" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="ip">{b.ip}</span>
                 <Badge tone="danger">{jailLabel(b.jail, t)}</Badge>
@@ -380,11 +380,11 @@ export default function PageSecurity() {
         </div>
       </Card>
 
-      <Card className="animate-in animate-in-3" style={{ marginTop: 18 }}>
+      <Card style={{ marginTop: 18 }}>
         <div className="card-title"><ShieldAlert size={15} /> {t('security.recentEvents')}</div>
         <div className="timeline" style={{ maxHeight: 460, overflow: 'auto' }}>
           {(d.recent_events || []).map((e, i) => (
-            <div key={i} className="timeline-item" style={{ animationDelay: `${Math.min(i, 10) * 0.03}s` }}>
+            <div key={i} className="timeline-item">
               <span className={`timeline-dot ${e.action.includes('Ban') ? 'ban' : 'unban'}`} />
               <div className="timeline-content">
                 <div>
@@ -418,7 +418,7 @@ function QuickStat({ icon: Icon, label, value, color }) {
     <div className="quick-stat">
       <div className="quick-stat-icon" style={{ color }}><Icon size={16} /></div>
       <div>
-        <div className="quick-stat-value">{value != null ? <AnimatedNumber value={value} /> : '···'}</div>
+        <div className="quick-stat-value">{value != null ? <FormattedNumber value={value} /> : '···'}</div>
         <div className="quick-stat-label">{label}</div>
       </div>
     </div>

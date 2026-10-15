@@ -121,10 +121,14 @@ def require_manage_admins():
 
 
 def _client_ip(request: Request) -> str:
+    """後端只聽 127.0.0.1:8000，所有請求都經過本機 Apache 反向代理，Apache 會把它實際看到的連線來源
+    附加在 X-Forwarded-For 的「最後一個」值。前面的值是瀏覽器自己帶來的、可以任意偽造，不能拿來當
+    登入失敗鎖定的依據（否則每次換一個假 IP 就能繞過鎖定、無限次猜密碼）。"""
+    peer = request.client.host if request.client else "unknown"
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    if forwarded and peer == "127.0.0.1":
+        return forwarded.split(",")[-1].strip()
+    return peer
 
 
 @router.post("/login")

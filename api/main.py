@@ -1,26 +1,38 @@
 import asyncio
 import logging
+import os
 
 from fastapi import FastAPI
 from api.routers import (
     users, domains, aliases, logs, services, stats, settings, security, webmail_logins,
-    admins, ip_lists, webmail_policy, admin_logins, system_updates, notifications,
+    admins, ip_lists, admin_logins, system_updates, notifications,
 )
 from api import auth, webauthn
 from api.admin_store import ensure_admins_file
 
 ensure_admins_file()
 
-app = FastAPI(title="NannanCat Mail Admin API")
+def _read_version():
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
+            return f.read().strip()
+    except OSError:
+        return "unknown"
+
+
+VERSION = _read_version()
+app = FastAPI(title="NannanCat Mail Admin API", version=VERSION)
 
 AUTO_BLACKLIST_INTERVAL_SECONDS = 300  # 每 5 分鐘檢查一次攻擊次數過頻的 IP，不需要有人打開後台頁面才會觸發
 HEALTH_NOTIFICATION_INTERVAL_SECONDS = 300  # 每 5 分鐘檢查一次系統健康狀態，寫進通知中心
 
 
+# 背景檢查都是同步函式（讀 log、跑 apt/systemctl），直接在 async 迴圈裡呼叫會卡住整個事件迴圈，
+# 檢查期間所有 API 請求都得等；用 asyncio.to_thread 丟到背景執行緒，後台操作不受影響。
 async def _auto_blacklist_loop():
     while True:
         try:
-            ip_lists._check_auto_blacklist()
+            await asyncio.to_thread(ip_lists._check_auto_blacklist)
         except Exception:
             logging.exception("auto blacklist background check failed")
         await asyncio.sleep(AUTO_BLACKLIST_INTERVAL_SECONDS)
@@ -29,11 +41,11 @@ async def _auto_blacklist_loop():
 async def _health_notification_loop():
     while True:
         try:
-            system_updates.check_and_notify_health()
+            await asyncio.to_thread(system_updates.check_and_notify_health)
         except Exception:
             logging.exception("system update health notification check failed")
         try:
-            services.check_and_notify_health()
+            await asyncio.to_thread(services.check_and_notify_health)
         except Exception:
             logging.exception("service health notification check failed")
         await asyncio.sleep(HEALTH_NOTIFICATION_INTERVAL_SECONDS)
@@ -61,14 +73,13 @@ app.include_router(security.router, prefix="/api/security")
 app.include_router(webmail_logins.router, prefix="/api/webmail-logins")
 app.include_router(admins.router, prefix="/api/admins")
 app.include_router(ip_lists.router, prefix="/api/ip-lists")
-app.include_router(webmail_policy.router, prefix="/api/webmail-policy")
 app.include_router(admin_logins.router, prefix="/api/admin-logins")
 app.include_router(system_updates.router, prefix="/api/system-updates")
 app.include_router(notifications.router, prefix="/api/notifications")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": VERSION}
 
 if __name__ == "__main__":
     import uvicorn

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import api from '../api/client'
-import { PageHeader, Card, StatusBadge, RadialGauge, Button, AnimatedNumber, Badge } from '../components/ui'
+import { PageHeader, Card, StatusBadge, RadialGauge, Button, FormattedNumber, Badge } from '../components/ui'
 import { useLanguage } from '../i18n/LanguageContext'
 
 function parsePercent(str) {
@@ -71,7 +71,7 @@ export default function PageDashboard({ onNavigate }) {
         <QuickStat icon={Send} label={t('dashboard.todaySent')} value={stats.sent ?? '···'} color="var(--success)" />
       </div>
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: '18px', position: 'relative', overflow: 'hidden' }}>
+      <Card style={{ marginBottom: '18px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div className="card-title" style={{ marginBottom: 0 }}><ShieldAlert size={15} /> {t('dashboard.securityOverview')}</div>
           <span className="live-badge"><span className="live-dot" />{t('dashboard.liveMonitoring')}</span>
@@ -81,7 +81,7 @@ export default function PageDashboard({ onNavigate }) {
             <div className="stat-icon" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', marginBottom: 0 }}><ShieldAlert size={16} /></div>
             <div>
               <div className="stat-value" style={{ fontSize: 20 }}>
-                {security ? <AnimatedNumber value={security.total_attacks_alltime} /> : '···'}
+                {security ? <FormattedNumber value={security.total_attacks_alltime} /> : '···'}
               </div>
               <div className="stat-label">{t('dashboard.totalAttacks')}</div>
             </div>
@@ -90,7 +90,7 @@ export default function PageDashboard({ onNavigate }) {
             <div className="stat-icon" style={{ background: 'var(--accent-violet)', color: '#fff', marginBottom: 0 }}><Ban size={16} /></div>
             <div>
               <div className="stat-value" style={{ fontSize: 20 }}>
-                {security ? <AnimatedNumber value={security.total_bans_alltime} /> : '···'}
+                {security ? <FormattedNumber value={security.total_bans_alltime} /> : '···'}
               </div>
               <div className="stat-label">{t('dashboard.totalBans')}</div>
             </div>
@@ -99,7 +99,7 @@ export default function PageDashboard({ onNavigate }) {
             <div className="stat-icon" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', marginBottom: 0 }}><KeyRound size={16} /></div>
             <div>
               <div className="stat-value" style={{ fontSize: 20 }}>
-                {security ? <AnimatedNumber value={security.sasl_failures_today} /> : '···'}
+                {security ? <FormattedNumber value={security.sasl_failures_today} /> : '···'}
               </div>
               <div className="stat-label">{t('dashboard.todayAuthFailures')}</div>
             </div>
@@ -110,7 +110,7 @@ export default function PageDashboard({ onNavigate }) {
         </div>
       </Card>
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: '18px' }}>
+      <Card style={{ marginBottom: '18px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div className="card-title" style={{ marginBottom: 0 }}><PackageCheck size={15} /> {t('dashboard.systemUpdatesOverview')}</div>
         </div>
@@ -122,7 +122,7 @@ export default function PageDashboard({ onNavigate }) {
             }}><PackageCheck size={16} /></div>
             <div>
               <div className="stat-value" style={{ fontSize: 20 }}>
-                {updates ? <AnimatedNumber value={updates.total_needing_action} /> : '···'}
+                {updates ? <FormattedNumber value={updates.total_needing_action} /> : '···'}
               </div>
               <div className="stat-label">{t('dashboard.itemsNeedingAction')}</div>
             </div>
@@ -136,7 +136,7 @@ export default function PageDashboard({ onNavigate }) {
         </div>
       </Card>
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: '18px' }}>
+      <Card style={{ marginBottom: '18px' }}>
         <div className="card-title"><Gauge size={15} /> {t('dashboard.resourceUsage')}</div>
         <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '20px', padding: '10px 0 4px' }}>
           <RadialGauge value={parseFloat(system.cpu) || 0} color="var(--accent-violet)" size={104} label={t('dashboard.cpu')} sublabel={system.cpu ? `${system.cpu}%` : '···'} />
@@ -147,7 +147,7 @@ export default function PageDashboard({ onNavigate }) {
       </Card>
 
       <div className="grid dashboard-split" style={{ marginBottom: '18px' }}>
-        <Card className="animate-in animate-in-2">
+        <Card>
           <div className="card-title"><Zap size={15} /> {t('dashboard.quickActions')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <Button variant="primary" icon={Plus} onClick={() => onNavigate?.('users')}>{t('dashboard.addUser')}</Button>
@@ -156,7 +156,7 @@ export default function PageDashboard({ onNavigate }) {
           </div>
         </Card>
 
-        <Card className="animate-in animate-in-3">
+        <Card>
           <div className="card-title"><MailWarning size={15} /> {t('dashboard.todayMailDistribution')}</div>
           <div style={{ width: '100%', height: 160 }}>
             <ResponsiveContainer>
@@ -167,7 +167,7 @@ export default function PageDashboard({ onNavigate }) {
                   contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                <Bar isAnimationActive={false} dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={40}>
                   {chartData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Bar>
               </BarChart>
@@ -177,7 +177,7 @@ export default function PageDashboard({ onNavigate }) {
       </div>
 
       <div className="grid dashboard-split">
-        <Card className="animate-in animate-in-2">
+        <Card>
           <div className="card-title"><Activity size={15} /> {t('dashboard.serviceStatus')}</div>
           <div className="service-chip-grid">
             {services.map(s => (
@@ -191,7 +191,7 @@ export default function PageDashboard({ onNavigate }) {
           {services.length === 0 && <div className="empty-row">{t('common.loading')}</div>}
         </Card>
 
-        <Card className="animate-in animate-in-3">
+        <Card>
           <div className="card-title"><ScrollText size={15} /> {t('dashboard.latestLogs')}</div>
           {logs.map((l, i) => (
             <div key={i} style={{

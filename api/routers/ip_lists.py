@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from api import privileged
 from api.auth import require_permission, verify_token
 from api.config import IP_LISTS_FILE, IP_WHITELIST_SYNC_FILE, IP_BLACKLIST_SYNC_FILE
 from api.routers.security import _parse_fail2ban, _geo_lookup, _ban_count_per_ip, _is_private
@@ -16,7 +17,7 @@ router = APIRouter()
 
 # 攻擊次數太頻繁的判斷門檻：歷史上被 fail2ban 真正 Ban 過 3 次（含）以上，
 # 視為「反覆重犯」，自動加入永久黑名單（fail2ban 的封鎖是有時效的，時間到就解封，
-# 永久黑名單則是持續生效，靠 fix-ip-lists.sh 安裝的 systemd path unit 同步進 UFW）。
+# 永久黑名單則是持續生效，靠 deploy/ 內的 mail-ip-lists-sync.path（systemd path unit） 同步進 UFW）。
 AUTO_BLACKLIST_THRESHOLD = 3
 
 
@@ -27,14 +28,23 @@ def _validate_ip(ip: str):
         raise HTTPException(status_code=400, detail={"code": "invalid_ip_format"})
 
 
+def _validate_cidr(cidr: str):
+    try:
+        ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={"code": "invalid_cidr_format"})
+
+
 def _load():
     if os.path.exists(IP_LISTS_FILE):
         try:
             with open(IP_LISTS_FILE) as f:
-                return json.load(f)
+                data = json.load(f)
+                data.setdefault("blocked_ranges", [])
+                return data
         except (json.JSONDecodeError, OSError):
             pass
-    return {"whitelist": [], "blacklist": []}
+    return {"whitelist": [], "blacklist": [], "blocked_ranges": []}
 
 
 def _save(data):
@@ -44,28 +54,19 @@ def _save(data):
     _sync_to_disk(data)
 
 
-def _write_sync_file(path: str, ips: list):
-    """把目前的 IP 清單寫到一個 root 擁有目錄下的純文字檔（一行一個 IP），
-    運行後端服務的系統帳號對 tee 有 NOPASSWD，可以直接寫，不需要互動密碼。
-    真正套用到防火牆/fail2ban 的動作交給另一個 root 自己的 systemd path unit 做（見 fix-ip-lists.sh），
-    這裡完全不需要、也不會嘗試展開這個系統帳號的 sudo 權限範圍。"""
+def _write_sync_file(kind: str, ips: list):
+    """Write the current IP list (one address per line) to /etc/mail-admin/<kind>-ips.txt through the privileged
+    helper, which validates every line. Actually applying it to the firewall / fail2ban is done by a separate
+    root-owned systemd path unit (deploy/templates/systemd/mail-ip-lists-sync.*), not by this process."""
     content = "\n".join(ips) + ("\n" if ips else "")
-    try:
-        subprocess.run(["sudo", "mkdir", "-p", os.path.dirname(path)], capture_output=True, timeout=5)
-        subprocess.run(["sudo", "tee", path], input=content, capture_output=True, text=True, timeout=5)
-    except subprocess.TimeoutExpired:
-        pass
+    privileged.run_helper("write-ip-list", kind, input=content, timeout=10)
 
 
 def _sync_to_disk(data):
-    _write_sync_file(IP_WHITELIST_SYNC_FILE, [e["ip"] for e in data["whitelist"]])
-    _write_sync_file(IP_BLACKLIST_SYNC_FILE, [e["ip"] for e in data["blacklist"]])
-    # 如果 fix-ip-lists.sh 已經裝好對應的 systemd path unit，這裡觸發立即套用；
-    # 還沒裝的話這行單純失敗（unit not found），不影響資料本身已經存好。
-    try:
-        subprocess.run(["sudo", "systemctl", "start", "mail-ip-lists-sync.service"], capture_output=True, timeout=5)
-    except subprocess.TimeoutExpired:
-        pass
+    _write_sync_file("whitelist", [e["ip"] for e in data["whitelist"]])
+    _write_sync_file("blacklist", [e["ip"] for e in data["blacklist"]])
+    # if the path unit is installed it has already noticed; this makes the change apply immediately
+    privileged.systemctl("start", "mail-ip-lists-sync.service", timeout=10)
 
 
 def _check_auto_blacklist():
@@ -103,6 +104,11 @@ class IPEntryCreate(BaseModel):
     note: str = ""
 
 
+class CIDREntryCreate(BaseModel):
+    cidr: str
+    note: str = ""
+
+
 @router.get("/", dependencies=[Depends(require_permission("ip_lists", "view"))])
 def get_ip_lists():
     data = _check_auto_blacklist()
@@ -120,6 +126,7 @@ def get_ip_lists():
     return {
         "whitelist": data["whitelist"],
         "blacklist": data["blacklist"],
+        "blocked_ranges": data["blocked_ranges"],
         "fail2ban_banned": banned,
     }
 
@@ -170,5 +177,34 @@ def delete_blacklist(ip: str):
     if len(remaining) == len(data["blacklist"]):
         raise HTTPException(status_code=404, detail={"code": "ip_not_found"})
     data["blacklist"] = remaining
+    _save(data)
+    return {"status": "ok"}
+
+
+# CIDR 網段封鎖：純紀錄／顯示用，不會被同步進 whitelist/blacklist-ips.txt 或觸發
+# mail-ip-lists-sync.service（那條管線只認單一 IP，見 _write_sync_file/_sync_to_disk）。
+# 實際生效的封鎖是管理員自己在伺服器上用 ufw 下的，這裡只是讓後台看得到、記錄誰在什麼
+# 時候因為什麼理由封鎖了哪個網段，避免只留在 shell 歷史紀錄裡沒人看得到。
+@router.post("/blocked-ranges", dependencies=[Depends(require_permission("ip_lists", "modify"))])
+def add_blocked_range(req: CIDREntryCreate, admin: dict = Depends(verify_token)):
+    _validate_cidr(req.cidr)
+    data = _load()
+    if any(e["cidr"] == req.cidr for e in data["blocked_ranges"]):
+        raise HTTPException(status_code=400, detail={"code": "ip_already_listed"})
+    data["blocked_ranges"].append({
+        "cidr": req.cidr, "note": req.note, "added_by": admin["username"],
+        "added_at": datetime.now(timezone.utc).isoformat(),
+    })
+    _save(data)
+    return {"status": "ok"}
+
+
+@router.delete("/blocked-ranges/{cidr:path}", dependencies=[Depends(require_permission("ip_lists", "modify"))])
+def delete_blocked_range(cidr: str):
+    data = _load()
+    remaining = [e for e in data["blocked_ranges"] if e["cidr"] != cidr]
+    if len(remaining) == len(data["blocked_ranges"]):
+        raise HTTPException(status_code=404, detail={"code": "ip_not_found"})
+    data["blocked_ranges"] = remaining
     _save(data)
     return {"status": "ok"}

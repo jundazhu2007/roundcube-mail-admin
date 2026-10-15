@@ -3,6 +3,7 @@ import os
 import subprocess
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from api import privileged
 from api.auth import require_permission
 from api.config import SETTINGS_FILE, AMAVIS_OVERRIDE_FILE
 
@@ -42,10 +43,10 @@ $sa_kill_level_deflt = {threshold};
 #------------ Do not modify anything below this line -------------
 1;  # ensure a defined return
 """
-    r = subprocess.run(['sudo', 'tee', AMAVIS_OVERRIDE_FILE], input=content, capture_output=True, text=True)
+    r = privileged.run_helper("write-amavis-override", input=content)
     if r.returncode != 0:
         raise HTTPException(status_code=500, detail={"code": "amavis_write_failed"})
-    subprocess.run(['sudo', 'systemctl', 'restart', 'amavis'])
+    privileged.systemctl("restart", "amavis")
 
 
 @router.get("/", dependencies=[Depends(require_permission("settings", "view"))])

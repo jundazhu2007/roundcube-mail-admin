@@ -165,7 +165,7 @@ export default function PageWebmailLogins() {
         </div>
       </div>
 
-      <Card className="animate-in animate-in-1" style={{ marginBottom: 18 }}>
+      <Card style={{ marginBottom: 18 }}>
         <div className="card-title"><Filter size={15} /> {t('webmailLogins.filterConditions')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
           <div>
@@ -222,14 +222,14 @@ export default function PageWebmailLogins() {
         </div>
       </Card>
 
-      <Card className="animate-in animate-in-2">
+      <Card>
         <div className="card-title"><LogIn size={15} /> {t('webmailLogins.loginRecords')}</div>
         <div className="timeline" style={{ maxHeight: 640, overflow: 'auto' }}>
           {logins.map((l, i) => {
             const DeviceIcon = deviceIcon(l.device_type)
             const primary = !l.geo?.is_private ? pickPrimary(l.geo || {}, t) : null
             return (
-              <div key={i} className="timeline-item" style={{ animationDelay: `${Math.min(i, 10) * 0.03}s` }}>
+              <div key={i} className="timeline-item">
                 <span className={`timeline-dot ${l.success ? 'unban' : 'ban'}`} />
                 <div className="timeline-content">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

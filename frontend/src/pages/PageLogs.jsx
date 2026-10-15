@@ -35,7 +35,7 @@ export default function PageLogs() {
           </select>
         </>} />
 
-      <div className="animate-in" style={{
+      <div style={{
         background: '#14151c', border: '1px solid #262834', borderRadius: 'var(--radius-lg)',
         overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
       }}>

@@ -101,7 +101,7 @@ export default function PageSettings() {
       <PageHeader icon={Settings} title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       <div className="grid grid-2">
-        <Card className="animate-in animate-in-1" style={{ alignSelf: 'start' }}>
+        <Card style={{ alignSelf: 'start' }}>
           <div className="card-title"><Shield size={15} /> {t('settings.mailParams')}</div>
           <MsgBanner msg={msg} onClose={() => setMsg({ text: '', type: '' })} />
           <div className="field">
@@ -121,7 +121,7 @@ export default function PageSettings() {
           <Button variant="primary" onClick={save} loading={saving}>{t('settings.saveSettings')}</Button>
         </Card>
 
-        <Card className="animate-in animate-in-2" style={{ alignSelf: 'start' }}>
+        <Card style={{ alignSelf: 'start' }}>
           <div className="card-title"><Fingerprint size={15} /> {t('settings.passkeyManagement')}</div>
           <MsgBanner msg={pkMsg} onClose={() => setPkMsg({ text: '', type: '' })} />
 
@@ -150,7 +150,7 @@ export default function PageSettings() {
           </div>
         </Card>
 
-        <Card className="animate-in animate-in-3" style={{ alignSelf: 'start' }}>
+        <Card style={{ alignSelf: 'start' }}>
           <div className="card-title"><Phone size={15} /> {t('settings.phoneLogin')}</div>
           <MsgBanner msg={phoneMsg} onClose={() => setPhoneMsg({ text: '', type: '' })} />
 

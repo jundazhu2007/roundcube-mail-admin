@@ -14,7 +14,6 @@ import PageSecurity from './PageSecurity'
 import PageWebmailLogins from './PageWebmailLogins'
 import PageAdmins from './PageAdmins'
 import PageIpLists from './PageIpLists'
-import PageWebmailPolicy from './PageWebmailPolicy'
 import PageAdminLogins from './PageAdminLogins'
 import PageSystemUpdates from './PageSystemUpdates'
 import PageMonitor from './PageMonitor'
@@ -27,7 +26,6 @@ const pages = {
   security: PageSecurity,
   'webmail-logins': PageWebmailLogins,
   'ip-lists': PageIpLists,
-  'webmail-policy': PageWebmailPolicy,
   'admin-logins': PageAdminLogins,
   'system-updates': PageSystemUpdates,
   logs: PageLogs,

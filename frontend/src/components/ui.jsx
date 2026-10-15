@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts'
@@ -38,7 +38,6 @@ export function Badge({ tone = 'neutral', dot, children }) {
   return (
     <span className={`badge badge-${tone}`}>
       {dot && <span className={`dot ${tone === 'success' ? 'dot-success' : tone === 'danger' ? 'dot-danger' : ''}`} />}
-      {tone === 'success' && <span className="badge-sparkle">✨</span>}
       {children}
     </span>
   )
@@ -77,25 +76,17 @@ export function MsgBanner({ msg, onClose }) {
   }, [msg?.text, msg?.type])
 
   if (!msg?.text) return null
-  const emoji = msg.type === 'success' ? '😻' : msg.type === 'error' ? '😿' : '🐱'
   return (
     <div key={msg.text} className={`msg-banner ${msg.type}`}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="msg-banner-emoji">{emoji}</span>
-        <span>{msg.text}</span>
-      </span>
+      <span>{msg.text}</span>
       <span className="close-x" onClick={onClose}><X size={14} /></span>
-      <span className="progress-bar" />
     </div>
   )
 }
 
-const EMPTY_STATE_EMOJI = ['🐾', '😴', '📭', '🐟', '🧶']
-
 export function EmptyState({ text, colSpan }) {
-  const emoji = EMPTY_STATE_EMOJI[text ? text.length % EMPTY_STATE_EMOJI.length : 0]
   return (
-    <tr><td colSpan={colSpan} className="empty-row"><span className="empty-row-paw">{emoji}</span>{text}</td></tr>
+    <tr><td colSpan={colSpan} className="empty-row">{text}</td></tr>
   )
 }
 
@@ -139,7 +130,7 @@ export function RadialGauge({ value = 0, color = 'var(--primary)', size = 96, la
         <RadialBarChart width={size} height={size} innerRadius="72%" outerRadius="100%"
           data={data} startAngle={90} endAngle={-270}>
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar dataKey="value" cornerRadius={20} fill={color} background={{ fill: 'var(--metric-bg)' }} />
+          <RadialBar dataKey="value" cornerRadius={20} fill={color} background={{ fill: 'var(--metric-bg)' }} isAnimationActive={false} />
         </RadialBarChart>
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -152,26 +143,8 @@ export function RadialGauge({ value = 0, color = 'var(--primary)', size = 96, la
   )
 }
 
-export function AnimatedNumber({ value, duration = 800 }) {
+// 數字直接顯示（原本每次從 0 逐格跳到目標值，每個數字都要跑約 50 個畫面）
+export function FormattedNumber({ value }) {
   const { lang } = useLanguage()
-  const [display, setDisplay] = useState(0)
-  const fromRef = useRef(0)
-
-  useEffect(() => {
-    const target = Number(value) || 0
-    const from = fromRef.current
-    const start = performance.now()
-    let raf
-    const tick = (now) => {
-      const progress = Math.min(1, (now - start) / duration)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setDisplay(Math.round(from + (target - from) * eased))
-      if (progress < 1) raf = requestAnimationFrame(tick)
-      else fromRef.current = target
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [value, duration])
-
-  return display.toLocaleString(localeFor(lang))
+  return (Number(value) || 0).toLocaleString(localeFor(lang))
 }

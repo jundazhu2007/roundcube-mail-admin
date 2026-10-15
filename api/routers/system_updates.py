@@ -7,6 +7,7 @@ import urllib.request
 
 from fastapi import APIRouter, Depends
 
+from api import privileged
 from api.auth import require_permission, require_super_admin
 from api.routers.security import _iter_all_lines
 from api.routers.notifications import add_notification_once
@@ -29,7 +30,7 @@ RKHUNTER_SCRIPT = "/usr/local/sbin/mail-admin-rkhunter-check.sh"
 RKHUNTER_STATE_DIR = "/var/lib/mail-admin-rkhunter"
 SCAN_LOG_TAIL_LINES = 300
 
-ROUNDCUBE_DIR = "/var/www/roundcube"
+ROUNDCUBE_DIR = os.environ.get("MAIL_ADMIN_ROUNDCUBE_DIR", "/var/www/roundcube")
 ROUNDCUBE_VERSION_RE = re.compile(r"define\('RCMAIL_VERSION',\s*'([^']+)'\)")
 ROUNDCUBE_RELEASES_API = "https://api.github.com/repos/roundcube/roundcubemail/releases"
 ROUNDCUBE_UPGRADE_SCRIPT = "/usr/local/sbin/mail-admin-roundcube-upgrade.sh"
@@ -208,7 +209,12 @@ def _fetch_roundcube_releases(per_page: int = 15):
             headers={"Accept": "application/vnd.github+json", "User-Agent": "mail-admin"},
         )
         with urllib.request.urlopen(req, timeout=ROUNDCUBE_FETCH_TIMEOUT) as resp:
-            releases = json.loads(resp.read().decode())
+            # GitHub 回傳的每筆 release 帶大量用不到的欄位（作者、資產、各種 URL），快取檔原本約 200KB、
+            # 每次載入系統更新頁都要整份解析；只留實際用到的三個欄位
+            releases = [
+                {k: r.get(k) for k in ("tag_name", "body", "published_at")}
+                for r in json.loads(resp.read().decode())
+            ]
         _save_roundcube_releases_cache(releases)
         return releases
     except Exception:
@@ -300,11 +306,11 @@ def get_upgrade_status():
 @router.post("/upgrade", dependencies=[Depends(require_super_admin())])
 def trigger_upgrade():
     """觸發 apt upgrade。高風險操作（可能造成服務短暫重啟），只有 super_admin 能用，前端有二次確認。
-    實際執行的固定路徑腳本、以及運行此服務的系統帳號對它的 NOPASSWD sudo 授權，見 ~/fix-apt-oneclick-update.sh。
+    實際執行的固定路徑腳本、以及服務帳號對它的 NOPASSWD sudo 授權，見 deploy/sbin/mail-admin-apt-upgrade.sh 與 deploy/sudoers.d/mail-admin。
     腳本本身有 flock，這裡的狀態檢查只是為了讓使用者連點按鈕時能立刻得到提示，不是唯一防線。"""
     if _read_upgrade_state_file("status") == "running":
         return {"error": {"code": "upgrade_already_running"}}
-    subprocess.Popen(["sudo", UPGRADE_SCRIPT])
+    subprocess.Popen([*privileged._PREFIX, UPGRADE_SCRIPT])
     return {"status": "started"}
 
 
@@ -321,10 +327,10 @@ def get_clamav_scan_status():
 def trigger_clamav_scan():
     """觸發全系統 ClamAV 掃描（本機檔案系統，不含 NFS 掛載的郵件儲存——郵件內容收發時已逐封掃過）。
     高風險操作定義成跟 apt upgrade 一樣（會占用系統資源一段時間），只有 super_admin 能觸發。
-    實際腳本與運行此服務的系統帳號的 NOPASSWD sudo 授權見 ~/fix-security-scan.sh。"""
+    實際腳本與服務帳號的 NOPASSWD sudo 授權見 deploy/sbin/ 與 deploy/sudoers.d/mail-admin。"""
     if _read_state_file(CLAMSCAN_STATE_DIR, "status") == "running":
         return {"error": {"code": "scan_already_running"}}
-    subprocess.Popen(["sudo", CLAMSCAN_SCRIPT])
+    subprocess.Popen([*privileged._PREFIX, CLAMSCAN_SCRIPT])
     return {"status": "started"}
 
 
@@ -352,10 +358,10 @@ def get_rkhunter_status():
 @router.post("/rkhunter-check", dependencies=[Depends(require_super_admin())])
 def trigger_rkhunter_check():
     """觸發 rkhunter rootkit 檢查，只有 super_admin 能觸發。
-    實際腳本與運行此服務的系統帳號的 NOPASSWD sudo 授權見 ~/fix-security-scan.sh。"""
+    實際腳本與服務帳號的 NOPASSWD sudo 授權見 deploy/sbin/ 與 deploy/sudoers.d/mail-admin。"""
     if _read_state_file(RKHUNTER_STATE_DIR, "status") == "running":
         return {"error": {"code": "scan_already_running"}}
-    subprocess.Popen(["sudo", RKHUNTER_SCRIPT])
+    subprocess.Popen([*privileged._PREFIX, RKHUNTER_SCRIPT])
     return {"status": "started"}
 
 
@@ -434,10 +440,10 @@ def get_roundcube_update_status():
 def trigger_roundcube_update():
     """觸發 Roundcube 更新。風險比 apt upgrade 更高（沒有 dpkg 幫忙管理版本/回滾，
     是直接置換 Composer 部署的應用程式檔案），只有 super_admin 能觸發，前端有二次確認。
-    更新前一定會先備份檔案+資料庫，見 ~/fix-roundcube-oneclick-update.sh。"""
+    更新前一定會先備份檔案+資料庫，見 deploy/sbin/mail-admin-roundcube-upgrade.sh。"""
     if _read_state_file(ROUNDCUBE_UPGRADE_STATE_DIR, "status") == "running":
         return {"error": {"code": "upgrade_already_running"}}
-    subprocess.Popen(["sudo", ROUNDCUBE_UPGRADE_SCRIPT])
+    subprocess.Popen([*privileged._PREFIX, ROUNDCUBE_UPGRADE_SCRIPT])
     return {"status": "started"}
 
 

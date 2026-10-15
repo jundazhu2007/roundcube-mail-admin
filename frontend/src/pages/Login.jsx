@@ -49,30 +49,9 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-container">
-      <div className="login-blob b1" />
-      <div className="login-blob b2" />
-      <div className="login-blob b3" />
-      <span className="login-paw p1">🐾</span>
-      <span className="login-paw p2">🐾</span>
-      <span className="login-paw p3">🐾</span>
-      <span className="login-paw p4">🐾</span>
-      <span className="login-paw p5">🐾</span>
-      <span className="login-paw p6">🐾</span>
-      <span className="login-paw p7">🐾</span>
-      <span className="login-paw p8">🐾</span>
-      <span className="login-deco d1">✨</span>
-      <span className="login-deco d2">💛</span>
-      <span className="login-deco d3">✨</span>
-      <span className="login-deco d4">🧶</span>
-      <span className="login-deco d5">🐟</span>
-      <span className="login-deco d6">✨</span>
-      <span className="login-zzz">💤</span>
-
       <div className="login-card">
         <div className="login-logo-wrap">
           <div className="login-logo">🐱</div>
-          <span className="login-logo-sparkle s1">✨</span>
-          <span className="login-logo-sparkle s2">⭐</span>
         </div>
         <h1>NannanCat Mail Admin</h1>
         <div className="subtitle">{t('login.subtitle')}</div>

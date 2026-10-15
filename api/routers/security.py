@@ -95,6 +95,7 @@ def _count_today(path, needle):
 def _historical_ban_stats():
     """掃描所有輪替過的 fail2ban log（含壓縮檔），算出全部記錄範圍內的總封鎖次數，
     以及依日期分組的封鎖次數（用來畫時間序列圖）。範圍受 logrotate 保留期間限制（這台大約 1 個月）。"""
+    since = _counting_since()
     daily = defaultdict(int)
     total = 0
     earliest = None
@@ -106,6 +107,8 @@ def _historical_ban_stats():
         if action not in ("Ban",):  # 只算真正新發生的 Ban，不算 Restore/Increase 避免重複膨脹
             continue
         day = ts[:10]
+        if day < since:
+            continue
         daily[day] += 1
         total += 1
         if earliest is None or day < earliest:
@@ -126,26 +129,32 @@ def _ban_count_per_ip():
 
 def _historical_unique_ips():
     """掃描所有輪替過的 fail2ban log，收集歷史上出現過的不重複攻擊 IP（只是文字比對，不查外部 API，很快）。"""
+    since = _counting_since()
     ips = set()
     for line in _iter_all_lines(FAIL2BAN_LOG):
         m = BAN_RE.match(line)
-        if m:
+        if m and m.group(1)[:10] >= since:
             ips.add(m.group(4))
     return ips
 
 
 def _historical_attack_stats():
     """掃描所有輪替過的 mail.log / auth.log，算出全部記錄範圍內的認證失敗總次數與每日分佈。"""
+    since = _counting_since()
     daily = defaultdict(int)
     total = 0
     for line in _iter_all_lines(MAIL_LOG):
         if "SASL LOGIN authentication failed" in line:
             day = line[:10]
+            if day < since:
+                continue
             daily[day] += 1
             total += 1
     for line in _iter_all_lines(AUTH_LOG):
         if "Failed password" in line or "Invalid user" in line:
             day = line[:10]
+            if day < since:
+                continue
             daily[day] += 1
             total += 1
     return total, dict(sorted(daily.items()))
@@ -159,6 +168,14 @@ def _load_security_totals():
         except (json.JSONDecodeError, OSError):
             pass
     return {"attack_days": {}, "ban_days": {}}
+
+
+def _counting_since():
+    """資安中心統計起算日（security_totals.json 的 `counting_since`，YYYY-MM-DD，log 的 UTC 日期）。
+    這天以前的紀錄不列入資安中心的任何統計（累計次數、每日趨勢、國家分布、最近事件）；
+    /var/log 原始 log 不動，目前封鎖狀態與自動黑名單（_ban_count_per_ip）也不受影響。
+    沒設定時回傳空字串，任何日期都 >= 它，等於不限制。"""
+    return _load_security_totals().get("counting_since") or ""
 
 
 def _save_security_totals(totals):
@@ -176,7 +193,12 @@ def _persistent_alltime_totals(attack_daily, ban_daily):
     第一次啟用時會把當下 log 還看得到的完整期間（約 1 個月）都拿來當起始基礎值，
     再更早、log 已經被清掉的攻擊次數本來就已經不存在，沒辦法回溯補上。"""
     totals = _load_security_totals()
+    since = totals.get("counting_since") or ""
     changed = False
+    for key in ("attack_days", "ban_days"):
+        for day in [d for d in totals[key] if d < since]:
+            del totals[key][day]
+            changed = True
     for day, count in attack_daily.items():
         if totals["attack_days"].get(day) != count:
             totals["attack_days"][day] = count
@@ -188,7 +210,7 @@ def _persistent_alltime_totals(attack_daily, ban_daily):
     if changed:
         _save_security_totals(totals)
 
-    tracking_started = min(
+    tracking_started = since or min(
         [*totals["attack_days"].keys(), *totals["ban_days"].keys()], default=None
     )
     return sum(totals["attack_days"].values()), sum(totals["ban_days"].values()), tracking_started
@@ -375,6 +397,8 @@ def _country_distribution(live_geo: dict):
 @router.get("/", dependencies=[Depends(require_permission("security", "view"))])
 def get_security():
     banned, events = _parse_fail2ban()
+    since = _counting_since()
+    events = [e for e in events if e["time"][:10] >= since]
     by_jail = {}
     for b in banned:
         by_jail[b["jail"]] = by_jail.get(b["jail"], 0) + 1

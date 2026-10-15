@@ -100,7 +100,7 @@ export default function PageUsers() {
 
       <MsgBanner msg={msg} onClose={()=>setMsg({text:'',type:''})} />
 
-      <div className="card table-wrap animate-in">
+      <div className="card table-wrap">
         <table className="data-table">
           <thead>
             <tr>
@@ -133,7 +133,7 @@ export default function PageUsers() {
                     </div>
                     {u.quota_mb > 0 && (
                       <div style={{ height: '5px', borderRadius: '4px', background: 'var(--metric-bg)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, borderRadius: '4px', background: barColor, transition: 'width .5s ease' }} />
+                        <div style={{ height: '100%', width: `${pct}%`, borderRadius: '4px', background: barColor }} />
                       </div>
                     )}
                   </td>

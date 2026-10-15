@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, Globe, AtSign, ScrollText,
-  ServerCog, BarChart3, Settings, LogOut, Sun, Moon, Monitor, ShieldAlert, LogIn, UserCog, Languages, ShieldBan, Globe2, Lock, Package, Activity,
+  ServerCog, BarChart3, Settings, LogOut, Sun, Moon, Monitor, ShieldAlert, LogIn, UserCog, Languages, ShieldBan, Lock, Package, Activity,
 } from 'lucide-react'
 import { useLanguage, LANGUAGES } from '../i18n/LanguageContext'
 
@@ -14,7 +14,6 @@ const items = [
   { id: 'security', labelKey: 'nav.security', icon: ShieldAlert, module: 'security', color: 'var(--danger)' },
   { id: 'webmail-logins', labelKey: 'nav.webmailLogins', icon: LogIn, module: 'webmail_logins', color: 'var(--accent-indigo)' },
   { id: 'ip-lists', labelKey: 'nav.ipLists', icon: ShieldBan, module: 'ip_lists', color: 'var(--accent-rose)' },
-  { id: 'webmail-policy', labelKey: 'nav.webmailPolicy', icon: Globe2, module: 'webmail_policy', color: 'var(--accent-teal)' },
   { id: 'admin-logins', labelKey: 'nav.adminLogins', icon: Lock, module: 'admin_logins', color: 'var(--warning)' },
   { id: 'logs', labelKey: 'nav.logs', icon: ScrollText, module: 'logs', color: 'var(--text-muted)' },
   { id: 'services', labelKey: 'nav.services', icon: ServerCog, module: 'services', color: 'var(--accent-violet)' },
@@ -45,14 +44,13 @@ export default function Sidebar({ current, onChange, onLogout, theme, setTheme, 
     <div className={`sidebar ${open ? 'open' : ''}`}>
       <div style={{ padding: '22px 18px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-          <div className="logo-badge" style={{
-            width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gradient)',
+          <div style={{
+            width: '30px', height: '30px', borderRadius: '9px', background: 'var(--primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px',
-            boxShadow: '0 2px 8px rgba(242,98,46,.4)', cursor: 'default',
           }}>🐱</div>
           <div>
             <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.01em' }}>NannanCat Mail</div>
-            <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>🐾 {t('nav.subtitle')}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{t('nav.subtitle')}</div>
           </div>
         </div>
       </div>
@@ -88,13 +86,11 @@ export default function Sidebar({ current, onChange, onLogout, theme, setTheme, 
               const active = theme === opt.value
               return (
                 <button key={opt.value} onClick={() => setTheme(opt.value)} title={t(opt.labelKey)}
-                  className={`theme-btn ${active ? 'active' : ''}`}
                   style={{
                     flex: 1, padding: '7px 0', border: `1px solid ${active ? 'var(--primary)' : 'var(--border-input)'}`,
                     borderRadius: '8px', background: active ? 'var(--primary-soft)' : 'transparent',
                     color: active ? 'var(--primary)' : 'var(--text-muted)',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all .18s ease',
                   }}>
                   <Icon size={14} />
                 </button>

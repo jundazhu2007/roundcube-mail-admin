@@ -23,7 +23,7 @@ def log_admin_login(username: str, success: bool, ip: str, user_agent: str):
     with open(ADMIN_LOGINS_LOG, "a") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-MODULES_WITH_MODIFY = {"users", "domains", "aliases", "services", "settings", "ip_lists", "webmail_policy"}
+MODULES_WITH_MODIFY = {"users", "domains", "aliases", "services", "settings", "ip_lists"}
 MODULES_VIEW_ONLY = {"logs", "stats", "security", "webmail_logins", "admin_logins"}
 ALL_MODULES = MODULES_WITH_MODIFY | MODULES_VIEW_ONLY
 

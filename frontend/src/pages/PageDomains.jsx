@@ -51,7 +51,7 @@ export default function PageDomains() {
 
       <MsgBanner msg={msg} onClose={() => setMsg({ text: '', type: '' })} />
 
-      <div className="card table-wrap animate-in">
+      <div className="card table-wrap">
         <table className="data-table">
           <thead>
             <tr>

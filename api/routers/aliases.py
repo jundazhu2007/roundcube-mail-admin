@@ -3,7 +3,7 @@ import mysql.connector
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from api.auth import require_permission
-from api.config import DB_HOST, DB_USER, DB_PASS, DB_NAME
+from api.config import DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME
 
 router = APIRouter()
 
@@ -12,7 +12,7 @@ LOCAL_PART_RE = re.compile(r"^[A-Za-z0-9._%+-]+$")
 
 def get_db():
     return mysql.connector.connect(
-        host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME
+        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS, database=DB_NAME
     )
 
 

@@ -12,7 +12,6 @@ const MODULES = [
   { key: 'services', navKey: 'services', modify: true },
   { key: 'settings', navKey: 'settings', modify: true },
   { key: 'ip_lists', navKey: 'ipLists', modify: true },
-  { key: 'webmail_policy', navKey: 'webmailPolicy', modify: true },
   { key: 'logs', navKey: 'logs', modify: false },
   { key: 'stats', navKey: 'stats', modify: false },
   { key: 'security', navKey: 'security', modify: false },
@@ -163,7 +162,7 @@ export default function PageAdmins({ currentAdmin }) {
 
       <MsgBanner msg={msg} onClose={() => setMsg({ text: '', type: '' })} />
 
-      <div className="card table-wrap animate-in">
+      <div className="card table-wrap">
         <table className="data-table">
           <thead>
             <tr>
