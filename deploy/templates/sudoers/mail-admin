@@ -1,0 +1,24 @@
+# Managed by the mail-admin installer. Validate edits with: visudo -cf /etc/sudoers.d/mail-admin
+#
+# The API runs as an unprivileged account. It may run exactly the commands below and nothing else.
+# There are deliberately no wildcards (sudo-rs on Ubuntu 26.04 does not allow them in arguments) and no
+# blanket rm/tee/chown: everything that touches mailboxes or system files goes through the helper, which
+# validates every argument and every byte of input (see deploy/sbin/mail-admin-helper).
+
+# --- mailbox directories, Dovecot password file, spam thresholds, IP list files ---
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-helper
+
+# --- spam thresholds and IP list sync ---
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl restart amavis
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl start mail-ip-lists-sync.service
+
+# --- Services page: restart one of the services in MAIL_ADMIN_MANAGED_SERVICES, reboot, power off ---
+@RESTART_RULES@
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
+
+# --- System updates page: one-click maintenance scripts ---
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-apt-upgrade.sh
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-clamav-fullscan.sh
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-rkhunter-check.sh
+@SERVICE_USER@ ALL=(root) NOPASSWD: /usr/local/sbin/mail-admin-roundcube-upgrade.sh

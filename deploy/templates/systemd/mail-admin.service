@@ -1,0 +1,22 @@
+[Unit]
+Description=Mail Admin API
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+SupplementaryGroups=adm
+WorkingDirectory=@INSTALL_DIR@
+EnvironmentFile=/etc/mail-admin/mail-admin.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@INSTALL_DIR@/venv/bin/uvicorn api.main:app --host 127.0.0.1 --port @API_PORT@
+Restart=always
+RestartSec=3
+# The API runs a handful of fixed commands through sudo, so NoNewPrivileges must stay off.
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

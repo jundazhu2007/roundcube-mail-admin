@@ -1,0 +1,6 @@
+user = @DB_USER@
+password = @DB_PASS@
+hosts = @DB_HOST@:@DB_PORT@
+dbname = @DB_NAME@
+# path relative to virtual_mailbox_base: <domain>/<localpart>/Maildir/
+query = SELECT CONCAT(SUBSTRING_INDEX(email,'@',-1),'/',SUBSTRING_INDEX(email,'@',1),'/Maildir/') FROM users WHERE email='%s' AND active=1

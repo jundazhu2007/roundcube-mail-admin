@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch the admin panel's IP allow/deny list files
+
+[Path]
+PathChanged=/etc/mail-admin/whitelist-ips.txt
+PathChanged=/etc/mail-admin/blacklist-ips.txt
+
+[Install]
+WantedBy=multi-user.target

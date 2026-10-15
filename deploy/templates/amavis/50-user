@@ -1,0 +1,6 @@
+use strict;
+# SpamAssassin score thresholds. The admin panel (Settings page) rewrites this file.
+$sa_tag_level_deflt  = 2.0;
+$sa_tag2_level_deflt = 5.0;
+$sa_kill_level_deflt = 5.0;
+1;  # ensure a defined return

@@ -1,0 +1,6 @@
+user = @DB_USER@
+password = @DB_PASS@
+hosts = @DB_HOST@:@DB_PORT@
+dbname = @DB_NAME@
+# who may send as an address: the mailbox itself, and the mailbox an alias points to
+query = SELECT email FROM users WHERE email='%s' AND active=1 UNION SELECT a.destination FROM aliases a WHERE a.source='%s' AND a.active=1

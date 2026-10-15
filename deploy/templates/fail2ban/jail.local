@@ -1,0 +1,18 @@
+# Managed by the mail-admin installer. Uses fail2ban's stock jail definitions; only turns them on.
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1 @FAIL2BAN_IGNORE@
+bantime = 1h
+findtime = 10m
+maxretry = 5
+
+[sshd]
+enabled = true
+
+[postfix]
+enabled = true
+
+[postfix-sasl]
+enabled = true
+
+[dovecot]
+enabled = true

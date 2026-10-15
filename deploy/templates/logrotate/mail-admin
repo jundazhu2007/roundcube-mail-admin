@@ -1,0 +1,10 @@
+# Managed by the mail-admin installer. Keeps @LOG_RETENTION_DAYS@ days of webmail logs.
+/var/log/roundcube/*.log {
+    daily
+    rotate @LOG_RETENTION_DAYS@
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 640 www-data adm
+}

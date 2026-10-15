@@ -1,0 +1,227 @@
+#!/usr/bin/python3 -I
+"""Privileged helper for the mail-admin API.
+
+The API runs as an unprivileged account. Instead of giving that account blanket `sudo rm`, `sudo tee` and
+`sudo chown` (which would be root-equivalent), sudoers allows exactly this program, and this program only
+performs a short list of operations after validating every argument:
+
+  maildir-create DOMAIN USER      create <maildata>/DOMAIN/USER/Maildir/{new,cur,tmp}, owned by vmail
+  maildir-delete DOMAIN USER      remove that mailbox directory
+  maildir-size   DOMAIN USER      print its size in MB
+  write-virtual-users             stdin -> /etc/dovecot/virtual-users   (only well-formed "user:{SCHEME}hash" lines)
+  write-amavis-override           stdin -> the Amavis override file     (only the lines the Settings page generates)
+  write-ip-list whitelist|blacklist   stdin -> /etc/mail-admin/<kind>-ips.txt   (only valid IPs / CIDRs)
+
+The mail storage path comes from the root-owned environment file, never from the arguments.
+Test hooks: MAIL_ADMIN_ENV_FILE, MAIL_ADMIN_HELPER_ETC (replaces /etc for the write-* commands).
+"""
+import ipaddress
+import os
+import pwd
+import grp
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ENV_FILE = os.environ.get("MAIL_ADMIN_ENV_FILE", "/etc/mail-admin/mail-admin.env")
+ETC = os.environ.get("MAIL_ADMIN_HELPER_ETC", "/etc")
+
+DOMAIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
+LOCAL_RE = re.compile(r"^[A-Za-z0-9._%+-]{1,64}$")
+VUSERS_LINE_RE = re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}:\{[A-Z0-9-]{3,32}\}[^\s:]{8,512}$")
+SA_LINE_RE = re.compile(r"^\$sa_(?:tag|tag2|kill)_level_deflt\s*=\s*-?\d+(?:\.\d+)?;\s*$")
+MAX_INPUT = 8 * 1024 * 1024
+
+
+def die(msg, code=2):
+    sys.stderr.write("mail-admin-helper: %s\n" % msg)
+    sys.exit(code)
+
+
+def read_env():
+    env = {}
+    try:
+        with open(ENV_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.rstrip("\n")
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k] = v
+    except OSError as e:
+        die("cannot read %s: %s" % (ENV_FILE, e))
+    return env
+
+
+def safe_local(name):
+    return bool(LOCAL_RE.match(name)) and not name.startswith(".") and not name.endswith(".") and ".." not in name
+
+
+def maildata_base():
+    base = read_env().get("MAIL_ADMIN_MAILDATA_PATH", "")
+    if not base.startswith("/") or base.rstrip("/") in ("", "/etc", "/usr", "/var", "/home", "/root", "/boot", "/bin", "/sbin", "/lib"):
+        die("refusing unsafe mail storage path %r" % base)
+    return os.path.realpath(base)
+
+
+def mailbox_dir(domain, user):
+    if not DOMAIN_RE.match(domain):
+        die("invalid domain")
+    if not safe_local(user):
+        die("invalid user name")
+    base = maildata_base()
+    target = os.path.join(base, domain, user)
+    # no component below the base may be a symlink, and the result must stay inside the base
+    probe = base
+    for part in (domain, user):
+        probe = os.path.join(probe, part)
+        if os.path.islink(probe):
+            die("refusing to follow a symlink in the mailbox path")
+    if os.path.commonpath([os.path.realpath(target), base]) != base or os.path.realpath(target) == base:
+        die("path escapes the mail storage directory")
+    return base, target
+
+
+def vmail_ids():
+    try:
+        return pwd.getpwnam("vmail").pw_uid, grp.getgrnam("vmail").gr_gid
+    except KeyError:
+        die("account 'vmail' does not exist")
+
+
+def chown_tree(path, uid, gid):
+    if os.geteuid() != 0:
+        return
+    os.chown(path, uid, gid)
+    for root, dirs, files in os.walk(path):
+        for n in dirs + files:
+            p = os.path.join(root, n)
+            if not os.path.islink(p):
+                os.chown(p, uid, gid)
+
+
+def cmd_maildir_create(domain, user):
+    base, target = mailbox_dir(domain, user)
+    uid, gid = vmail_ids()
+    # Mail directories must not be listable by other local users: 750 for the domain level, 700 below.
+    wanted = [
+        (os.path.join(base, domain), 0o750),
+        (target, 0o700),
+        (os.path.join(target, "Maildir"), 0o700),
+    ] + [(os.path.join(target, "Maildir", sub), 0o700) for sub in ("new", "cur", "tmp")]
+    for path, mode in wanted:
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        os.chmod(path, mode)
+    if os.geteuid() == 0:
+        os.chown(os.path.join(base, domain), uid, gid)
+    chown_tree(target, uid, gid)
+
+
+def cmd_maildir_delete(domain, user):
+    _, target = mailbox_dir(domain, user)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+
+
+def cmd_maildir_size(domain, user):
+    _, target = mailbox_dir(domain, user)
+    maildir = os.path.join(target, "Maildir")
+    if not os.path.isdir(maildir):
+        print("0")
+        return
+    r = subprocess.run(["du", "-sm", maildir], capture_output=True, text=True)
+    print((r.stdout.split("\t")[0].strip() if r.returncode == 0 else "0") or "0")
+
+
+def read_stdin():
+    data = sys.stdin.buffer.read(MAX_INPUT + 1)
+    if len(data) > MAX_INPUT:
+        die("input too large")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        die("input is not valid UTF-8")
+
+
+def atomic_write(path, content, mode):
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.chmod(tmp, mode)
+        if os.geteuid() == 0:
+            os.chown(tmp, 0, 0)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def cmd_write_virtual_users():
+    content = read_stdin()
+    seen = set()
+    for n, line in enumerate(content.splitlines(), 1):
+        if not VUSERS_LINE_RE.match(line):
+            die("line %d is not a valid 'user@domain:{SCHEME}hash' entry" % n)
+        user = line.split(":", 1)[0].lower()
+        if user in seen:
+            die("duplicate user %s" % user)
+        seen.add(user)
+    atomic_write(os.path.join(ETC, "dovecot", "virtual-users"), content, 0o644)
+
+
+def cmd_write_amavis_override():
+    content = read_stdin()
+    for n, line in enumerate(content.splitlines(), 1):
+        s = line.strip()
+        if s == "" or s.startswith("#") or s == "use strict;" or re.match(r"^1;\s*(#.*)?$", s) or SA_LINE_RE.match(s):
+            continue
+        die("line %d is not something the Settings page generates" % n)
+    target = read_env().get("MAIL_ADMIN_AMAVIS_OVERRIDE_FILE") or os.path.join(ETC, "amavis", "conf.d", "50-user")
+    if not target.startswith("/") or os.path.basename(target) != "50-user":
+        die("unexpected Amavis override file %r" % target)
+    atomic_write(target, content, 0o644)
+
+
+def cmd_write_ip_list(kind):
+    if kind not in ("whitelist", "blacklist"):
+        die("kind must be whitelist or blacklist")
+    content = read_stdin()
+    lines = [l.strip() for l in content.splitlines() if l.strip()]
+    if len(lines) > 100000:
+        die("too many entries")
+    for n, l in enumerate(lines, 1):
+        try:
+            ipaddress.ip_network(l, strict=False)
+        except ValueError:
+            die("line %d is not an IP address or CIDR" % n)
+    atomic_write(os.path.join(ETC, "mail-admin", "%s-ips.txt" % kind), "".join(l + "\n" for l in lines), 0o644)
+
+
+COMMANDS = {
+    "maildir-create": (cmd_maildir_create, 2),
+    "maildir-delete": (cmd_maildir_delete, 2),
+    "maildir-size": (cmd_maildir_size, 2),
+    "write-virtual-users": (cmd_write_virtual_users, 0),
+    "write-amavis-override": (cmd_write_amavis_override, 0),
+    "write-ip-list": (cmd_write_ip_list, 1),
+}
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] not in COMMANDS:
+        die("usage: mail-admin-helper {%s} [args]" % "|".join(COMMANDS))
+    fn, nargs = COMMANDS[argv[1]]
+    if len(argv) - 2 != nargs:
+        die("%s takes %d argument(s)" % (argv[1], nargs))
+    os.umask(0o022)
+    fn(*argv[2:])
+
+
+if __name__ == "__main__":
+    main(sys.argv)

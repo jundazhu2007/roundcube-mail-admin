@@ -1,0 +1,2 @@
+# Variables are shared between the sourced installer modules, which shellcheck cannot see across files.
+disable=SC2034,SC1091,SC2153

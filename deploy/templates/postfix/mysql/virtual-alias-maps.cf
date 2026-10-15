@@ -1,0 +1,5 @@
+user = @DB_USER@
+password = @DB_PASS@
+hosts = @DB_HOST@:@DB_PORT@
+dbname = @DB_NAME@
+query = SELECT a.destination FROM aliases a JOIN domains d ON a.domain_id = d.id WHERE a.source='%s' AND a.active=1 AND d.active=1

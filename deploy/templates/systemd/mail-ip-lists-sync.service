@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply the admin panel's IP allow/deny lists to the firewall and fail2ban
+After=network.target nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/sbin/mail-admin-sync-ip-lists.sh
+
+[Install]
+WantedBy=multi-user.target

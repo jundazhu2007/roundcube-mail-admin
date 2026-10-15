@@ -1,0 +1,5 @@
+user = @DB_USER@
+password = @DB_PASS@
+hosts = @DB_HOST@:@DB_PORT@
+dbname = @DB_NAME@
+query = SELECT 1 FROM domains WHERE name='%s' AND active=1

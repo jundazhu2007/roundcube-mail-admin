@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Add DKIM signing for another mail domain and print the DNS record to publish.
+# usage: mail-admin-dkim-add-domain DOMAIN [SELECTOR]
+set -euo pipefail
+[ "$(id -u)" = 0 ] || { echo "run as root" >&2; exit 1; }
+domain="${1:?usage: $0 DOMAIN [SELECTOR]}"
+selector="${2:-mail}"
+[[ "$domain" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "invalid domain" >&2; exit 1; }
+[[ "$selector" =~ ^[A-Za-z0-9-]+$ ]] || { echo "invalid selector" >&2; exit 1; }
+
+dir="/etc/opendkim/keys/$domain"
+mkdir -p "$dir"
+if [ ! -f "$dir/$selector.private" ]; then
+  opendkim-genkey -b 2048 -d "$domain" -D "$dir" -s "$selector"
+fi
+chown -R opendkim:opendkim "/etc/opendkim/keys"
+chmod 600 "$dir/$selector.private"
+
+touch /etc/opendkim/key.table /etc/opendkim/signing.table
+grep -qF "$selector._domainkey.$domain " /etc/opendkim/key.table ||
+  echo "$selector._domainkey.$domain $domain:$selector:$dir/$selector.private" >> /etc/opendkim/key.table
+grep -qF "*@$domain " /etc/opendkim/signing.table ||
+  echo "*@$domain $selector._domainkey.$domain" >> /etc/opendkim/signing.table
+systemctl restart opendkim
+
+echo
+echo "Publish this DNS TXT record:"
+echo "  name : $selector._domainkey.$domain"
+printf '  value: '
+tr -d '\n\t' < "$dir/$selector.txt" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//; s/" +"//g; s/"//g'
+echo

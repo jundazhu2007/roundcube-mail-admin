@@ -1,0 +1,10 @@
+use strict;
+$mydomain = '@MAIL_DOMAIN@';
+$myhostname = '@MAIL_HOSTNAME@';
+# Treat every recipient domain as local so spam tagging also applies to domains added later in the panel
+@local_domains_acl = ( '.' );
+# Spam is tagged and still delivered (nothing is silently dropped)
+$final_spam_destiny = D_PASS;
+$sa_spam_subject_tag = '***SPAM*** ';
+@AMAVIS_BYPASS_LINES@
+1;  # ensure a defined return
