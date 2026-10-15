@@ -67,7 +67,7 @@ scenario() {   # scenario NAME  (variables are set by the caller)
     fi
     postconf -c "$pf" -M | grep -q '^submissions' && pass "465 submissions service present" || fail "submissions service missing"
     # the lookup tables postconf can introspect
-    check "postmap can read the generated mysql map definitions' syntax (postconf -m includes mysql)" bash -c "postconf -m | grep -qx mysql"
+    if postconf -c "$pf" -m 2>/dev/null | grep -qx mysql; then pass "Postfix has MySQL map support (postfix-mysql installed)"; else skip "postfix-mysql not installed (MySQL map support not checked)"; fi
   else skip "Postfix (postconf or main.cf.dist not available)"; fi
 
   # ---------------- Dovecot
