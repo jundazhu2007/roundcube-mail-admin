@@ -48,9 +48,9 @@ echo "== installer: setup_database_full (the real function, real SQL)"
 mkdir -p "$T/mail/homes" "$T/etc/dovecot" "$T/etc/mail-admin" "$T/etc/amavis/conf.d"
 printf 'MAIL_ADMIN_MAILDATA_PATH=%s\nMAIL_ADMIN_AMAVIS_OVERRIDE_FILE=%s\n' "$T/mail/homes" "$T/etc/amavis/conf.d/50-user" > "$T/api.env"
 
-export MAIL_ADMIN_JWT_SECRET="test-secret-$(date +%s)"
+MAIL_ADMIN_JWT_SECRET="test-secret-$(date +%s)"; export MAIL_ADMIN_JWT_SECRET
 export MAIL_ADMIN_USER=tester
-export MAIL_ADMIN_PASS_HASH="$("$PYTHON" -c 'import bcrypt; print(bcrypt.hashpw(b"integration-test-pw", bcrypt.gensalt(4)).decode())')"
+MAIL_ADMIN_PASS_HASH="$("$PYTHON" -c 'import bcrypt; print(bcrypt.hashpw(b"integration-test-pw", bcrypt.gensalt(4)).decode())')"; export MAIL_ADMIN_PASS_HASH
 export MAIL_ADMIN_DB_HOST=127.0.0.1 MAIL_ADMIN_DB_PORT="$PORT" MAIL_ADMIN_DB_USER=mailuser MAIL_ADMIN_DB_NAME=mailserver
 MAIL_ADMIN_DB_PASS="$(cat "$T/dbpass")"; export MAIL_ADMIN_DB_PASS
 export MAIL_ADMIN_MAILDATA_PATH="$T/mail/homes"

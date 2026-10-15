@@ -137,7 +137,7 @@ scenario() {   # scenario NAME  (variables are set by the caller)
 base() {
   reset_options
   MODE=full; MAIL_HOSTNAME=mail.example.com; MAIL_DOMAIN=example.com; LE_EMAIL=ops@example.com
-  TLS_MODE=letsencrypt; ADMIN_ALLOW="192.168.1.0/24,203.0.113.7"; ADMIN_USER=admin
+  TLS_MODE=letsencrypt; ADMIN_ALLOW="192.168.1.0/24,203.0.113.7"; ADMIN_USER="admin"
   apply_defaults
   ANTIVIRUS=1; ANTISPAM=1; DKIM=1; WEBMAIL=1; FIRST_MAILBOX=postmaster; CLOUDFLARE_TUNNEL=0
 }
