@@ -1,0 +1,29 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the release bundle
+        run: bash deploy/build-release.sh "${GITHUB_REF_NAME#v}"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\[?"v"\\]?" {f=1; next} /^## / && f {exit} f' CHANGELOG.md)"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist-release/mail-admin.tar.gz dist-release/SHA256SUMS --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist-release/mail-admin.tar.gz dist-release/SHA256SUMS \
+              --title "mail-admin ${GITHUB_REF_NAME#v}" --notes "${notes:-See CHANGELOG.md}"
+          fi

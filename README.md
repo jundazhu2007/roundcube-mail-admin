@@ -1,150 +1,153 @@
 # NannanCat Mail Admin
 
-A self-hosted web admin panel for a Postfix + Dovecot + MariaDB + Roundcube mail
-server: mailbox/domain/alias management, IP allow/deny lists with GeoIP lookups,
-webmail & admin login history, service control, and one-click system maintenance
-(apt upgrades, ClamAV scans, rkhunter checks, Roundcube upgrades).
+A self-hosted mail server **with a web admin panel**, installed with one command.
 
-FastAPI backend, React + Vite frontend, JWT + WebAuthn/passkey admin auth,
-zh-TW / en / ja i18n.
+It sets up Postfix, Dovecot, MariaDB, Amavis (ClamAV + SpamAssassin), OpenDKIM and Roundcube webmail on a
+fresh Ubuntu server, and gives you an admin panel (FastAPI + React) to run it: mailboxes, domains, aliases,
+IP allow/deny lists with GeoIP, webmail and admin login history, service control, one-click system updates,
+virus scans and Roundcube upgrades, a security overview, passkey (WebAuthn) logins and a 3-language UI
+(English, 繁體中文, 日本語).
 
-📖 **從零開始的完整中文建置指南**（含架構圖、Postfix/Dovecot/MariaDB/Amavis/Roundcube 全部一起架設）：
-[`docs/SETUP.zh-TW.md`](docs/SETUP.zh-TW.md)
+[繁體中文說明 → docs/SETUP.zh-TW.md](docs/SETUP.zh-TW.md)
 
-## Architecture
+> **Status: 1.1 (beta).** The pieces are validated against the real Postfix 3.10, Dovecot 2.4, Apache 2.4,
+> PHP 8.5 and MariaDB 11.8 that Ubuntu 26.04 ships (see [Testing](#testing)), but the installer has not yet been
+> run end-to-end on a large number of clean servers. Try it on a fresh VM first and
+> [open an issue](https://github.com/Jundahzu/roundcube-mail-admin/issues) if anything misbehaves.
+
+## Install
+
+On a **fresh Ubuntu 26.04 LTS** server, as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash
+```
+
+In a terminal it asks a handful of questions (hostname, certificates, Cloudflare, storage, …) with sensible
+defaults and shows a plan before it changes anything. For unattended installs pass everything as flags:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- \
+  --yes --hostname mail.example.com --email you@example.com --admin-allow 203.0.113.7
+```
+
+Prefer to read before you run? Download it first, then run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh
+less install.sh && sudo bash install.sh --help
+```
+
+`install.sh` only downloads the release tarball, verifies its SHA-256 against the published `SHA256SUMS`, and
+runs the real installer ([`deploy/installer/`](deploy/installer)) from it. `--dry-run` prints every action
+without changing anything (and needs no root).
+
+When it finishes you get a summary with the admin URL and password, the first mailbox, and **the exact DNS
+records to create** (A, MX, SPF, DKIM, DMARC, PTR).
+
+### What you need
+
+| | |
+|---|---|
+| OS | Ubuntu **26.04 LTS** or newer (x86-64 or arm64). 24.04 is not supported: it ships Dovecot 2.3, this release configures Dovecot 2.4. |
+| Resources | 2 GB RAM (4 GB if you enable antivirus), 10 GB disk plus mail storage |
+| Network | a public IP, a DNS name for the server, inbound ports 25 · 465 · 993 · 443 (and 80 for HTTP certificate issuance) |
+| Good to know | many ISPs and clouds block outbound port 25 – use `--relayhost` with a smarthost if so |
+
+### Choices you can make
+
+Everything has a default, everything can be set with a flag (`install.sh --help`), a `--config` file, or in the
+wizard. The ones people ask about first:
+
+| Question | Options |
+|---|---|
+| **Cloudflare** (optional, two independent pieces) | **Tunnel**: publish the web UI through `cloudflared` (`--cloudflare-tunnel-token`). **DNS-01 certificates**: get Let's Encrypt certificates through the Cloudflare API, no open port 80 needed (`--tls cloudflare-dns --cloudflare-dns-token`). Mail itself (SMTP/IMAP) can never go through a tunnel – keep the mail host *DNS-only*. |
+| **Mail storage** | local disk (default) or an **NFS share / NAS** (`--nfs-server host:/export`): the installer mounts it, writes `/etc/fstab`, and makes Postfix and Dovecot wait for the mount at boot |
+| **Certificates** | Let's Encrypt over HTTP · Let's Encrypt over Cloudflare DNS · your own certificate files · self-signed (testing) |
+| **Who can open the panel** | `--admin-allow` networks (default: this server's LAN + the IP you run the installer from). Webmail can be public or restricted to the same networks (`--webmail-access`) |
+| **Components** | webmail (Roundcube version/plugins/skin/language), antivirus, spam filter, DKIM, fail2ban, firewall (ufw), IPv6 |
+| **Attach to an existing server** | `--mode admin-only` installs only the panel and points it at your database |
+| **Mail relaying** | `--relayhost [smtp.example.net]:587 --relay-user … --relay-pass …` |
+
+Full reference with examples: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+### Upgrade, change settings, add a domain
+
+```bash
+sudo mail-admin-install --yes --webmail-language ja_JP     # re-run with changed options; secrets and mail are kept
+# upgrade just the panel to a newer release (never touches mail, config or data):
+curl -fsSL https://raw.githubusercontent.com/Jundahzu/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
+sudo mail-admin-dkim-add-domain example.org                # DKIM key + the DNS record to publish
+```
+
+Domains, mailboxes and aliases are managed in the panel; Roundcube and the OS can be updated from the panel's
+**System updates** page.
+
+## How it works
 
 ```mermaid
 flowchart TB
-    MTA["Other mail servers<br/>(SMTP :25)"] --> Postfix
-    WebUser["Browser (webmail)"] --> Apache
-    Admin["Browser (/admin, LAN only)"] --> Apache
+    MTA["other mail servers<br/>SMTP :25"] --> Postfix
+    Phone["mail apps<br/>IMAPS :993 / SMTPS :465"] --> Dovecot & Postfix
+    Browser["browser"] --> Apache
+    CF["Cloudflare Tunnel<br/>(optional)"] -.-> Apache
 
-    subgraph host["This host"]
-        Apache["Apache<br/>reverse proxy + TLS"]
-        Postfix["Postfix"]
-        Dovecot["Dovecot<br/>IMAP / Maildir"]
-        Amavis["Amavis + ClamAV<br/>+ SpamAssassin"]
-        Roundcube["Roundcube webmail"]
-        API["mail-admin API<br/>(FastAPI :8000)"]
-        Frontend["mail-admin frontend"]
-        DB[("MariaDB<br/>domains / users / aliases")]
-        Maildir[("Maildir storage")]
-        VUsers["/etc/dovecot/virtual-users"]
+    subgraph host["your server"]
+        Apache["Apache :443<br/>TLS, reverse proxy"]
+        Postfix["Postfix"] --> Amavis["Amavis<br/>ClamAV + SpamAssassin"] --> Postfix
+        Postfix -. "DKIM milter" .- DKIM["OpenDKIM"]
+        Postfix -->|lookups| DB[("MariaDB<br/>domains · users · aliases")]
+        Postfix -->|deliver| Maildir[("Maildir<br/>local disk or NFS")]
+        Dovecot["Dovecot IMAP"] --> Maildir
+        Dovecot -->|"auth: /etc/dovecot/virtual-users"| VU["password file"]
+        Roundcube["Roundcube"] -->|IMAP / SMTP on localhost| Dovecot
+        Apache -->|/roundcube| Roundcube
+        Apache -->|"/admin  (allowed networks only)"| UI["admin panel UI"]
+        Apache -->|"/api"| API["admin API<br/>FastAPI :8000"]
+        API --> DB
+        API -->|"sudo → one validated helper"| Helper["mail-admin-helper (root)"]
+        Helper --> Maildir
+        Helper --> VU
     end
-
-    Postfix --> Amavis --> Postfix
-    Postfix -->|lookup| DB
-    Postfix -->|deliver| Dovecot --> Maildir
-    Dovecot -->|auth| VUsers
-
-    Apache -->|/roundcube| Roundcube
-    Roundcube -->|IMAP login| Dovecot
-    Roundcube -->|"ask before login"| API
-
-    Apache -->|/admin| Frontend
-    Apache -->|/api| API
-    API --> DB
-    API --> Maildir
-    API --> VUsers
 ```
 
-MariaDB's `domains`/`users`/`aliases` tables are the source of truth — Postfix
-queries them live for routing/delivery decisions. Dovecot never talks to the
-database directly; it authenticates against a flat `passwd-file`
-(`/etc/dovecot/virtual-users`) that mail-admin regenerates from the database on
-every mailbox change. Roundcube authenticates straight against Dovecot's IMAP —
-mail-admin only touches the login path through the optional `country_gate`
-plugin (see the setup guide), and separately reads Roundcube's own log files to
-show login history. Full explanation with the reasoning behind each piece:
-[`docs/SETUP.zh-TW.md`](docs/SETUP.zh-TW.md#1-原理這些東西怎麼串在一起).
+* **MariaDB is the source of truth** for domains, mailboxes and aliases; Postfix queries it live. Dovecot never
+  talks to the database – it authenticates against a password file that the panel regenerates from the
+  database on every change.
+* **Least privilege**: the API runs as an unprivileged account. It may run exactly one root program through
+  sudo – `mail-admin-helper` – which validates every argument and input line (mailbox paths cannot escape the
+  mail directory, the password file only accepts well-formed entries, …), plus a short list of fixed
+  `systemctl` and maintenance-script commands. No blanket `sudo rm/tee/chown`.
+* **Admin access is network-restricted** by Apache (`/admin`, `/api`) and protected by bcrypt passwords,
+  JWTs, login lockout and optional passkeys.
 
-## Is this for you?
+Details and file locations: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-This is an operations tool, not a generic app — it manages a real mail server by
-shelling out to `systemctl`, `doveadm`, `sudo`-gated maintenance scripts, and a
-MariaDB `users`/`domains` schema in the iRedMail style. It's a good fit if you
-already run (or are setting up) a Postfix/Dovecot/MariaDB/Roundcube stack and
-want a nicer admin UI than raw SQL/CLI. It will not spin up that mail stack for
-you.
+## Testing
 
-## Quick start (local dev)
+What is automatically checked (run in CI, and runnable locally):
+
+* `bash deploy/installer/tests/render-check.sh` – renders every template for six option combinations and has
+  the **real tools** judge the result: `postconf` (Postfix settings and `master.cf`), `doveconf` (Dovecot 2.4),
+  `apache2 -t`, `visudo -cf`, `php -l`, `systemd-analyze verify`, and `nft -c` where the runner allows it.
+* `bash tests/integration/run.sh` – starts a throwaway MariaDB, runs the installer's real database setup, then
+  drives the API (domains, mailboxes, aliases, settings, IP lists, deletion) through the real privileged
+  helper and verifies Dovecot password hashes with `doveadm`; also attacks the helper (path traversal,
+  symlinks, injected password-file lines, injected Perl) and checks that it refuses.
+* `install.sh --dry-run` walks the complete installation and prints each command.
+
+What has **not** been done yet: a full unattended run on a clean machine with real DNS and certificates.
+
+## Development
 
 ```bash
-git clone <this-repo>
-cd mail-admin
-./install.sh
+./dev-setup.sh         # venv + frontend build + .env (does not touch the system)
 ```
 
-This creates the backend venv, installs Python deps, builds the frontend, and
-copies `.env.example` to `.env`. Fill in `.env` (JWT secret, break-glass admin
-hash, DB credentials — see comments in the file), then:
-
-```bash
-set -a; source .env; set +a
-venv/bin/uvicorn api.main:app --reload
-# in another shell
-cd frontend && npm run dev
-```
-
-The dev server proxies `/api` to `http://localhost:8000` (see
-`frontend/vite.config.js`).
-
-## Production deployment
-
-1. Copy this repo to the target host (e.g. `/opt/mail-admin`) and run
-   `./install.sh` there.
-2. Fill in `/etc/mail-admin.env` (or wherever you point `EnvironmentFile`) using
-   `.env.example` as the reference — keep it `chmod 600`, owned by the service
-   account.
-3. Install `deploy/mail-admin.service` to `/etc/systemd/system/`, edit the
-   `User=` and paths to match your host, then `systemctl enable --now mail-admin`.
-4. Install `deploy/sudoers.d/mail-admin` to `/etc/sudoers.d/mail-admin` — **read
-   it first** and replace `SERVICE_USER` with the real account name. It grants
-   exactly the commands the API shells out to (dovecot virtual-users rebuild,
-   maildir management, IP list sync, service restart/reboot/poweroff, and the
-   maintenance scripts below). Validate with `visudo -cf`.
-5. Write the four maintenance scripts referenced in
-   `api/routers/system_updates.py` for your own OS/package manager and place
-   them at:
-   - `/usr/local/sbin/mail-admin-apt-upgrade.sh`
-   - `/usr/local/sbin/mail-admin-clamav-fullscan.sh`
-   - `/usr/local/sbin/mail-admin-rkhunter-check.sh`
-   - `/usr/local/sbin/mail-admin-roundcube-upgrade.sh`
-
-   These are host-specific and intentionally not included in this repo.
-6. Serve `frontend/dist` (after `npm run build`) under `/admin/` and reverse
-   proxy `/api` to `127.0.0.1:8000` — e.g. with Apache `Alias`/`ProxyPass` or an
-   Nginx `location` block.
-
-## Optional: Roundcube country gate
-
-`roundcube-plugin/country_gate/` is a small Roundcube plugin that enforces the
-country allow/deny list set on the panel's Webmail Policy page, by calling
-`/api/webmail-policy/check` before every login. Fail-open by design — see
-[`roundcube-plugin/country_gate/README.md`](roundcube-plugin/country_gate/README.md).
-
-## Configuration reference
-
-All configuration is via environment variables — see `.env.example` for the
-full list and defaults. Required (no default, the app refuses to start without
-them):
-
-| Variable | Purpose |
-|---|---|
-| `MAIL_ADMIN_USER` / `MAIL_ADMIN_PASS_HASH` | Break-glass super admin, used to bootstrap the first account and as a fallback if `api/data/admins.json` is lost |
-| `MAIL_ADMIN_JWT_SECRET` | Signs admin session tokens |
-| `MAIL_ADMIN_DB_PASS` | Password for the mail database user |
-
-Everything else (DB host/user/name, WebAuthn RP ID/origin, log/maildata paths,
-default mail domain, token TTL) has a generic default and can be overridden —
-see `.env.example`.
-
-## Data & privacy
-
-`api/data/` holds runtime state (admin accounts, IP lists, login history,
-GeoIP cache, settings) and is gitignored — the app creates these files itself
-on first run. Never commit real contents of that directory.
+Backend: FastAPI in [`api/`](api). Frontend: React + Vite in [`frontend/`](frontend). Installer, templates and
+maintenance scripts: [`deploy/`](deploy). Configuration is by environment variables – see
+[`.env.example`](.env.example). `api/data/` holds runtime state and is never committed.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT – see [LICENSE](LICENSE).
