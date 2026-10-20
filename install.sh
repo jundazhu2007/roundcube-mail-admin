@@ -11,7 +11,7 @@
 # if you do not want to pipe a script into a root shell:
 #     curl -fsSLO https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh && less install.sh
 #
-# MAIL_ADMIN_REF=v1.1.0 pins a version (default: the latest release).
+# MAIL_ADMIN_REF=v1.1.1 pins a version (default: the latest release).
 set -euo pipefail
 
 REPO="${MAIL_ADMIN_REPO:-jundazhu2007/roundcube-mail-admin}"

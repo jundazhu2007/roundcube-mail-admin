@@ -230,7 +230,7 @@ Additional mail domains: add them in the panel, create their MX/SPF/DMARC record
   ```bash
   curl -fsSL https://raw.githubusercontent.com/jundazhu2007/roundcube-mail-admin/main/install.sh | sudo bash -s -- --upgrade
   ```
-  Pin a release with `MAIL_ADMIN_REF=v1.1.0`.
+  Pin a release with `MAIL_ADMIN_REF=v1.1.1`.
 * Roundcube and the OS packages are updated from the panel's **System updates** page.
 
 ## Attaching the panel to an existing mail server

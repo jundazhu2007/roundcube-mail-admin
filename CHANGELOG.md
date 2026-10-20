@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.1] – 2026-10-20
 
 ### Added
 - Every admin page has its own URL (`/admin/<page>`): reload, bookmarks, the browser's back/forward buttons and
