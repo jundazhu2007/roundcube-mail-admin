@@ -95,6 +95,17 @@ check("blacklist file written", open(os.path.join(TMP, "etc", "mail-admin", "bla
 r = c.post("/api/ip-lists/blacklist", json={"ip": "not-an-ip"}, headers=H)
 check("invalid IP rejected by the API", r.status_code == 400)
 
+# ---- bulk add / delete (IP lists page)
+r = c.post("/api/ip-lists/blacklist/bulk", json={"ips": ["198.51.100.1", "198.51.100.2", "198.51.100.77", "bogus", " "], "note": "bulk"}, headers=H)
+check("bulk add reports added / duplicate / invalid", r.status_code == 200 and r.json() == {"added": ["198.51.100.1", "198.51.100.2"], "duplicates": ["198.51.100.77"], "invalid": ["bogus"]}, r.text)
+bl = open(os.path.join(TMP, "etc", "mail-admin", "blacklist-ips.txt")).read().split()
+check("bulk add is written to the sync file once, validated", sorted(bl) == ["198.51.100.1", "198.51.100.2", "198.51.100.77"], str(bl))
+r = c.post("/api/ip-lists/nonsense/bulk", json={"ips": ["198.51.100.9"]}, headers=H)
+check("unknown list name rejected", r.status_code == 422)
+r = c.post("/api/ip-lists/blacklist/bulk-delete", json={"ips": ["198.51.100.1", "198.51.100.2", "203.0.113.200"]}, headers=H)
+check("bulk delete removes only existing entries", r.status_code == 200 and r.json() == {"removed": 2}, r.text)
+check("blacklist file updated after bulk delete", open(os.path.join(TMP, "etc", "mail-admin", "blacklist-ips.txt")).read() == "198.51.100.77\n")
+
 # ---- delete path
 r = c.delete("/api/users/alice@test.example", headers=H)
 check("delete mailbox", r.status_code == 200, r.text)

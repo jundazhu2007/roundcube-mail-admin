@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import re
+import tempfile
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -234,9 +235,19 @@ def _load_geo_cache():
 
 
 def _save_geo_cache(cache):
-    os.makedirs(os.path.dirname(GEOIP_CACHE_FILE), exist_ok=True)
-    with open(GEOIP_CACHE_FILE, "w") as f:
-        json.dump(cache, f)
+    # 先寫暫存檔再 os.replace 換上去：多個請求跟背景排程都會讀寫這個檔，直接覆寫的話
+    # 別人可能剛好讀到寫一半的檔案（JSON 解析失敗就當成空快取，接著把只剩幾筆的快取寫回去）。
+    cache_dir = os.path.dirname(GEOIP_CACHE_FILE)
+    os.makedirs(cache_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=cache_dir, prefix=".geoip_cache.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(cache, f)
+        os.chmod(tmp_path, 0o644)
+        os.replace(tmp_path, GEOIP_CACHE_FILE)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
 
 
 def _rdap_lookup(ip: str):
@@ -279,6 +290,74 @@ def _rdap_lookup(ip: str):
     }
 
 
+def _geoip_batch(ips):
+    """ip-api.com 批次查詢（單次上限 100 個 IP），回傳 {ip: geoip 資料}；查詢失敗或查不到的 IP 不會出現在結果裡。"""
+    rows = {}
+    try:
+        body = json.dumps(ips[:100]).encode()
+        req = urllib.request.Request(
+            "http://ip-api.com/batch?fields=status,country,countryCode,regionName,isp,city,as,query",
+            data=body, headers={"Content-Type": "application/json"}, method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            for row in json.loads(resp.read().decode()):
+                if row.get("status") == "success":
+                    rows[row.get("query")] = {
+                        "country": row.get("country", "unknown"),
+                        "country_code": row.get("countryCode", ""),
+                        "isp": row.get("isp", "unknown"),
+                        "city": row.get("city", ""),
+                        "region": row.get("regionName", ""),
+                        "as": row.get("as", ""),
+                    }
+    except Exception:
+        pass
+    return rows
+
+
+def _cached_geo(ips):
+    """只讀快取、完全不發外部請求，快取多舊都照用；快取裡沒有的 IP 不會出現在結果裡。
+    給一次要列出上百個 IP 的地方用（永久黑名單）：那種數量每個都即時查 RDAP，
+    頁面要卡 30 秒以上，而且大部分會被 RDAP 伺服器限流查失敗。"""
+    cache = _load_geo_cache()
+    result = {}
+    for ip in ips:
+        if _is_private(ip):
+            result[ip] = {"is_private": True, "rdap": None, "geoip": None, "queried_at": None}
+        elif ip in cache:
+            result[ip] = cache[ip]["data"]
+    return result
+
+
+def _fill_geoip_cache(ips):
+    """背景慢慢補齊快取：挑出快取裡還沒有 GeoIP 資料的 IP，每次最多 100 個、只打一次 ip-api 批次查詢
+    （不查 RDAP）。_cached_at 保留原值（沒有的話記 0），需要完整資料時 _geo_lookup 仍會當成過期重新查。
+    回傳這次補到幾個。"""
+    cache = _load_geo_cache()
+    missing = [
+        ip for ip in ips
+        if not _is_private(ip) and not ((cache.get(ip) or {}).get("data") or {}).get("geoip")
+    ]
+    if not missing:
+        return 0
+    rows = _geoip_batch(missing[:100])
+    if not rows:
+        return 0
+    # 查詢期間可能有其他請求寫過快取，重新讀一次再合併，盡量不蓋掉別人剛寫進去的資料
+    cache = _load_geo_cache()
+    queried_at = datetime.now(timezone.utc).isoformat()
+    for ip, geoip_data in rows.items():
+        entry = cache.get(ip) or {
+            "data": {"is_private": False, "rdap": None, "geoip": None, "queried_at": None},
+            "_cached_at": 0,
+        }
+        entry["data"]["geoip"] = geoip_data
+        entry["data"]["queried_at"] = queried_at
+        cache[ip] = entry
+    _save_geo_cache(cache)
+    return len(rows)
+
+
 def _geo_lookup(ips):
     """對每個 IP 同時保留兩種獨立來源，不合併成單一結論：
     - rdap: 即時查詢區域網路註冊機構的官方登記資料（權威，但反映的是「登記地」不一定是實際發送地）
@@ -301,18 +380,7 @@ def _geo_lookup(ips):
             to_query.append(ip)
 
     if to_query:
-        geoip_rows = {}
-        try:
-            body = json.dumps(to_query[:100]).encode()
-            req = urllib.request.Request(
-                "http://ip-api.com/batch?fields=status,country,countryCode,regionName,isp,city,as,query",
-                data=body, headers={"Content-Type": "application/json"}, method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                for row in json.loads(resp.read().decode()):
-                    geoip_rows[row.get("query")] = row
-        except Exception:
-            pass
+        geoip_rows = _geoip_batch(to_query)
 
         # RDAP 查詢是逐一發出的即時網路請求（不像上面的 GeoIP 是一次批次呼叫），
         # 如果用簡單 for 迴圈依序查詢，N 個沒快取的 IP 就要等 N 次網路來回時間加總，
@@ -323,22 +391,11 @@ def _geo_lookup(ips):
             rdap_results = dict(zip(to_query, pool.map(_rdap_lookup, to_query)))
 
         for ip in to_query:
-            row = geoip_rows.get(ip)
-            geoip_data = None
-            if row and row.get("status") == "success":
-                geoip_data = {
-                    "country": row.get("country", "unknown"),
-                    "country_code": row.get("countryCode", ""),
-                    "isp": row.get("isp", "unknown"),
-                    "city": row.get("city", ""),
-                    "region": row.get("regionName", ""),
-                    "as": row.get("as", ""),
-                }
             rdap_data = rdap_results.get(ip)
             data = {
                 "is_private": False,
                 "rdap": rdap_data,
-                "geoip": geoip_data,
+                "geoip": geoip_rows.get(ip),
                 "queried_at": datetime.now(timezone.utc).isoformat(),
             }
             result[ip] = data

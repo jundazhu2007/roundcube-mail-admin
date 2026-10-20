@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Every admin page has its own URL (`/admin/<page>`): reload, bookmarks, the browser's back/forward buttons and
+  "open in new tab" now work; the tab title shows the current page.
+- IP lists page rebuilt: search and paging, filters (source, jail), select-all, **bulk add** (paste many
+  addresses at once) and **bulk delete**, separate tabs for fail2ban bans and blocked ranges. Blacklist GeoIP
+  details are filled in by a background job and fetched on demand (`GET /api/ip-lists/geo/{ip}`), so the page no
+  longer stalls on large blacklists.
+
+### Fixed
+- After the session expires the panel reloads into the login page instead of redirecting to a non-existent
+  `/login` (404); a failed passkey login no longer triggers a reload.
+
 ## [1.1.0] – 2026-10-15
 
 ### Added

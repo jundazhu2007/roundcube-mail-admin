@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Menu } from 'lucide-react'
 import Sidebar from '../components/Sidebar'
+import { useLanguage } from '../i18n/LanguageContext'
+import { pagePath, pageIdFromLocation, navLabelKey } from '../navigation'
 import NotificationBell from '../components/NotificationBell'
 import PageDashboard from './PageDashboard'
 import PageUsers from './PageUsers'
@@ -37,14 +39,33 @@ const pages = {
 }
 
 export default function Dashboard({ onLogout, theme, setTheme, currentAdmin }) {
-  const [page, setPage] = useState('dashboard')
+  const { t } = useLanguage()
+  const [page, setPage] = useState(() => pageIdFromLocation(Object.keys(pages)))
   const [mobileOpen, setMobileOpen] = useState(false)
   const Page = pages[page]
+
+  // 瀏覽器的上一頁／下一頁：網址變了就切到對應頁面；認不得的網址順便改成正規的寫法
+  useEffect(() => {
+    const syncFromLocation = () => setPage(pageIdFromLocation(Object.keys(pages)))
+    const current = pageIdFromLocation(Object.keys(pages))
+    if (window.location.pathname !== pagePath(current)) window.history.replaceState(null, '', pagePath(current))
+    window.addEventListener('popstate', syncFromLocation)
+    return () => window.removeEventListener('popstate', syncFromLocation)
+  }, [])
+
+  useEffect(() => {
+    document.title = `${t(navLabelKey(page))} · NannanCat Mail Admin`
+  }, [page, t])
+
+  const navigate = (id) => {
+    if (id !== page) window.history.pushState(null, '', pagePath(id))
+    setPage(id)
+  }
 
   return (
     <div className="app-shell" style={{display:'flex',minHeight:'100vh',width:'100%',fontSize:'14px',background:'var(--bg-secondary)'}}>
       <NotificationBell />
-      <Sidebar current={page} onChange={setPage} onLogout={onLogout} theme={theme} setTheme={setTheme}
+      <Sidebar current={page} onChange={navigate} onLogout={onLogout} theme={theme} setTheme={setTheme}
         open={mobileOpen} onNavigate={() => setMobileOpen(false)} currentAdmin={currentAdmin} />
       {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />}
       <div className="main-content" style={{flex:1,overflow:'auto',minWidth:0}}>
@@ -52,7 +73,7 @@ export default function Dashboard({ onLogout, theme, setTheme, currentAdmin }) {
           <button onClick={() => setMobileOpen(true)} aria-label="開啟選單"><Menu size={18} /></button>
           <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>🐱 NannanCat Mail</div>
         </div>
-        <Page key={page} onNavigate={setPage} currentAdmin={currentAdmin} />
+        <Page key={page} onNavigate={navigate} currentAdmin={currentAdmin} />
       </div>
     </div>
   )

@@ -3,21 +3,24 @@ import json
 import os
 import subprocess
 from datetime import datetime, timezone
+from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api import privileged
 from api.auth import require_permission, verify_token
 from api.config import IP_LISTS_FILE, IP_WHITELIST_SYNC_FILE, IP_BLACKLIST_SYNC_FILE
-from api.routers.security import _parse_fail2ban, _geo_lookup, _ban_count_per_ip, _is_private
+from api.routers.security import (
+    _parse_fail2ban, _geo_lookup, _cached_geo, _fill_geoip_cache, _ban_count_per_ip, _is_private,
+)
 from api.routers.notifications import add_notification
 
 router = APIRouter()
 
 # 攻擊次數太頻繁的判斷門檻：歷史上被 fail2ban 真正 Ban 過 3 次（含）以上，
 # 視為「反覆重犯」，自動加入永久黑名單（fail2ban 的封鎖是有時效的，時間到就解封，
-# 永久黑名單則是持續生效，靠 deploy/ 內的 mail-ip-lists-sync.path（systemd path unit） 同步進 UFW）。
+# 永久黑名單則是持續生效，靠 deploy/ 內的 mail-ip-lists-sync.path（systemd path unit）同步進防火牆）。
 AUTO_BLACKLIST_THRESHOLD = 3
 
 
@@ -99,9 +102,29 @@ def _check_auto_blacklist():
     return data
 
 
+def fill_blacklist_geo():
+    """main.py 背景排程呼叫：每輪幫永久黑名單補最多 100 個 IP 的國家/ISP（只查 GeoIP），
+    清單頁面本身不再即時查黑名單的地理位置，靠這裡慢慢補齊。"""
+    return _fill_geoip_cache([e["ip"] for e in _load()["blacklist"]])
+
+
+class ListKind(str, Enum):
+    whitelist = "whitelist"
+    blacklist = "blacklist"
+
+
 class IPEntryCreate(BaseModel):
     ip: str
     note: str = ""
+
+
+class BulkIPCreate(BaseModel):
+    ips: list[str] = Field(max_length=5000)
+    note: str = ""
+
+
+class BulkIPDelete(BaseModel):
+    ips: list[str] = Field(max_length=5000)
 
 
 class CIDREntryCreate(BaseModel):
@@ -114,8 +137,11 @@ def get_ip_lists():
     data = _check_auto_blacklist()
     banned, _events = _parse_fail2ban()
 
-    all_ips = {e["ip"] for e in data["whitelist"]} | {e["ip"] for e in data["blacklist"]} | {b["ip"] for b in banned}
-    geo = _geo_lookup(list(all_ips))
+    # 白名單跟 fail2ban 封鎖中的 IP 通常只有個位數，維持即時查詢；永久黑名單動輒上百筆，
+    # 全部即時查 RDAP 會讓這頁卡 30 秒以上，所以只用快取（背景排程 fill_blacklist_geo 會慢慢補齊），
+    # 完整的即時資料等點開單筆詳情時再查（GET /geo/{ip}）。
+    geo = _geo_lookup(list({e["ip"] for e in data["whitelist"]} | {b["ip"] for b in banned}))
+    geo = {**_cached_geo([e["ip"] for e in data["blacklist"] if e["ip"] not in geo]), **geo}
     for e in data["whitelist"]:
         e["geo"] = geo.get(e["ip"], {})
     for e in data["blacklist"]:
@@ -129,6 +155,53 @@ def get_ip_lists():
         "blocked_ranges": data["blocked_ranges"],
         "fail2ban_banned": banned,
     }
+
+
+@router.get("/geo/{ip}", dependencies=[Depends(require_permission("ip_lists", "view"))])
+def get_ip_geo(ip: str):
+    _validate_ip(ip)
+    return _geo_lookup([ip])[ip]
+
+
+@router.post("/{kind}/bulk", dependencies=[Depends(require_permission("ip_lists", "modify"))])
+def bulk_add(kind: ListKind, req: BulkIPCreate, admin: dict = Depends(verify_token)):
+    """一次加入多個 IP（後台「新增」視窗可以直接貼上一整串）：格式錯誤、已經在清單裡的分別回報，
+    其餘全部加入後只存檔＋同步防火牆一次。"""
+    data = _load()
+    entries = data[kind.value]
+    existing = {e["ip"] for e in entries}
+    added, duplicates, invalid = [], [], []
+    added_at = datetime.now(timezone.utc).isoformat()
+    for raw in req.ips:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            ip = str(ipaddress.ip_address(raw))
+        except ValueError:
+            invalid.append(raw)
+            continue
+        if ip in existing:
+            duplicates.append(ip)
+            continue
+        existing.add(ip)
+        entries.append({"ip": ip, "note": req.note, "added_by": admin["username"], "added_at": added_at})
+        added.append(ip)
+    if added:
+        _save(data)
+    return {"added": added, "duplicates": duplicates, "invalid": invalid}
+
+
+@router.post("/{kind}/bulk-delete", dependencies=[Depends(require_permission("ip_lists", "modify"))])
+def bulk_delete(kind: ListKind, req: BulkIPDelete):
+    data = _load()
+    targets = set(req.ips)
+    remaining = [e for e in data[kind.value] if e["ip"] not in targets]
+    removed = len(data[kind.value]) - len(remaining)
+    if removed:
+        data[kind.value] = remaining
+        _save(data)
+    return {"removed": removed}
 
 
 @router.post("/whitelist", dependencies=[Depends(require_permission("ip_lists", "modify"))])

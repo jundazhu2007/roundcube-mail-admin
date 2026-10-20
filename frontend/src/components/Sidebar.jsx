@@ -3,6 +3,7 @@ import {
   ServerCog, BarChart3, Settings, LogOut, Sun, Moon, Monitor, ShieldAlert, LogIn, UserCog, Languages, ShieldBan, Lock, Package, Activity,
 } from 'lucide-react'
 import { useLanguage, LANGUAGES } from '../i18n/LanguageContext'
+import { pagePath } from '../navigation'
 
 // module: null 代表一律顯示（不受權限矩陣控制，例如儀表板本身是彙總頁）；
 // 'admins' 這個 module 名稱是特殊 key，不是後端 permissions 裡的模組，另外用 manage_admins/super_admin 判斷
@@ -60,11 +61,18 @@ export default function Sidebar({ current, onChange, onLogout, theme, setTheme, 
           const Icon = item.icon
           const active = current === item.id
           return (
-            <div key={item.id} onClick={() => { onChange(item.id); onNavigate?.() }} className={`nav-item ${active ? 'active' : ''}`}>
+            <a key={item.id} href={pagePath(item.id)} className={`nav-item ${active ? 'active' : ''}`}
+              onClick={e => {
+                // 按著 Cmd/Ctrl/Shift 或用中鍵點，交給瀏覽器用新分頁／新視窗開
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+                e.preventDefault()
+                onChange(item.id)
+                onNavigate?.()
+              }}>
               {active && <span className="nav-indicator" />}
               <Icon size={16} strokeWidth={2.2} style={active ? undefined : { color: item.color }} />
               {t(item.labelKey)}
-            </div>
+            </a>
           )
         })}
       </nav>

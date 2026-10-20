@@ -35,6 +35,10 @@ async def _auto_blacklist_loop():
             await asyncio.to_thread(ip_lists._check_auto_blacklist)
         except Exception:
             logging.exception("auto blacklist background check failed")
+        try:
+            await asyncio.to_thread(ip_lists.fill_blacklist_geo)
+        except Exception:
+            logging.exception("blacklist geo fill failed")
         await asyncio.sleep(AUTO_BLACKLIST_INTERVAL_SECONDS)
 
 
